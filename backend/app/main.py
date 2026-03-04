@@ -5,6 +5,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,7 +32,7 @@ from .analyzer import (
 )
 from .database import Base, SessionLocal, engine, get_db
 from .logging_config import setup_logging
-from .models import PolicyAnalysis, PolicyText, Service
+from .models import PolicyAnalysis, PolicyText, Service, SharedReport
 from .seed import seed_popular_services
 
 POLICY_CACHE_TTL_DAYS = int(os.getenv("POLICY_CACHE_TTL_DAYS", "7"))
@@ -631,4 +632,39 @@ async def get_policy_text(
         "positives": json.loads(analysis.positives),
         "grade": analysis.grade,
         "service_name": service.name,
+    }
+
+
+# ── Shared Reports ────────────────────────────────────────────────────────────
+
+
+class CreateReportRequest(BaseModel):
+    overall_grade: str
+    results: list[dict]
+
+
+@app.post("/api/reports", status_code=201)
+async def create_report(req: CreateReportRequest, db: AsyncSession = Depends(get_db)):
+    report_id = uuid4().hex[:12]
+    report = SharedReport(
+        id=report_id,
+        overall_grade=req.overall_grade,
+        results_json=json.dumps(req.results),
+    )
+    db.add(report)
+    await db.commit()
+    return {"id": report_id}
+
+
+@app.get("/api/reports/{report_id}")
+async def get_report(report_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(SharedReport).where(SharedReport.id == report_id))
+    report = result.scalar_one_or_none()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return {
+        "id": report.id,
+        "overall_grade": report.overall_grade,
+        "results": json.loads(report.results_json),
+        "created_at": report.created_at.isoformat(),
     }

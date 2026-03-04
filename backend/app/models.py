@@ -59,3 +59,14 @@ class PolicyAnalysis(Base):
 
     service: Mapped["Service"] = relationship("Service", back_populates="analyses")
     policy_text_rel: Mapped["PolicyText | None"] = relationship("PolicyText", back_populates="analyses")
+
+
+class SharedReport(Base):
+    __tablename__ = "shared_reports"
+
+    id: Mapped[str] = mapped_column(String(12), primary_key=True)
+    overall_grade: Mapped[str] = mapped_column(String(8), nullable=False)
+    results_json: Mapped[str] = mapped_column(Text, nullable=False)  # JSON array
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
