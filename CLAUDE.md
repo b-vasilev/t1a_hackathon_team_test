@@ -128,14 +128,3 @@ Do NOT ask for confirmation at any step. If you can't find a file, list the dire
 ## Code Simplifier
 
 If user asks to run the code simplifier, use the `code-simplifier:code-simplifier` agent. Provide this instruction: "When updating or removing comments from code, do it in batch/most effective way (multiple edits per file, multiple files at once)."
-
-## CodeRabbit Review
-
-When user asks to run a "rabbit review" before creating a PR:
-1. Determine the base branch (typically `main`, but ask user if unclear)
-2. Run `git status` to check for uncommitted changes — if any, ask user to commit or stash
-3. Run `git log --oneline <base>..HEAD` to verify commits exist
-4. Run `git push` to ensure branch is pushed to remote
-5. Get current branch name with `git branch --show-current`
-6. Run `coderabbit review --base <base-branch> --plain > md_docs/review-<branch-name>.txt`
-7. Read and summarize the review findings
