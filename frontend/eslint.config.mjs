@@ -1,0 +1,40 @@
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { FlatCompat } from "@eslint/eslintrc";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const compat = new FlatCompat({ baseDirectory: __dirname });
+
+const eslintConfig = [
+  ...compat.extends("next/core-web-vitals"),
+  {
+    rules: {
+      "no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "no-console": ["warn", { allow: ["warn", "error"] }],
+      "no-var": "error",
+      "prefer-const": "error",
+      "no-duplicate-imports": "error",
+      eqeqeq: ["error", "always"],
+      "no-implicit-coercion": "error",
+      curly: ["error", "all"],
+      "no-nested-ternary": "error",
+      "no-unneeded-ternary": "error",
+      "no-else-return": "error",
+      "no-shadow": "error",
+      "no-throw-literal": "error",
+      "prefer-template": "error",
+      "no-param-reassign": "error",
+      "react/self-closing-comp": "error",
+      "react/jsx-no-useless-fragment": "error",
+      "react/jsx-curly-brace-presence": [
+        "error",
+        { props: "never", children: "never" },
+      ],
+      "react-hooks/exhaustive-deps": "warn",
+    },
+  },
+];
+
+export default eslintConfig;
