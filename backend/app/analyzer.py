@@ -6,7 +6,6 @@ import re
 import litellm
 from bs4 import BeautifulSoup
 from curl_cffi.requests import AsyncSession
-from curl_cffi.requests.errors import RequestsError
 
 from .prompts import ANALYSIS_USER_PROMPT, FIND_URL_SYSTEM, FIND_URL_USER, GRADING_RUBRIC
 
@@ -58,40 +57,83 @@ def _extract_text(html: str, max_chars: int) -> str:
     return text[:max_chars]
 
 
+def _has_useful_content(html: str, min_length: int = 500) -> bool:
+    """Check if HTML response has enough text to be useful, even on non-200 status."""
+    text = _extract_text(html, 5000)
+    return len(text) >= min_length
+
+
 async def fetch_text(url: str, max_chars: int = 50000) -> str:
-    logger.info("Fetching policy text from %s", url)
-    async with AsyncSession(impersonate="chrome", timeout=20) as session:
+    logger.info("=== fetch_text START for %s ===", url)
+    headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+    }
+    async with AsyncSession(impersonate="chrome", timeout=20, headers=headers) as session:
         # Attempt 1: direct fetch
         try:
+            logger.info("[Attempt 1] Direct fetch: %s", url)
             resp = await session.get(url)
+            logger.info("[Attempt 1] Status=%d, content_length=%d", resp.status_code, len(resp.text))
+            # Accept non-200 responses if they have useful content
+            has_content = _has_useful_content(resp.text)
+            logger.info("[Attempt 1] has_useful_content=%s", has_content)
+            if resp.status_code < 400 or has_content:
+                extracted = _extract_text(resp.text, max_chars)
+                logger.info("[Attempt 1] SUCCESS — extracted %d chars", len(extracted))
+                return extracted
+            logger.info("[Attempt 1] Raising for status %d", resp.status_code)
             resp.raise_for_status()
-            logger.info("Direct fetch succeeded for %s (%d chars)", url, len(resp.text))
-            return _extract_text(resp.text, max_chars)
-        except RequestsError as e:
-            logger.warning("Direct fetch failed for %s: %s", url, e)
+        except Exception as e:
+            logger.warning("[Attempt 1] FAILED — %s: %s", type(e).__name__, e)
 
         # Attempt 2: Google webcache
         try:
             from urllib.parse import quote_plus
 
             cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{quote_plus(url)}"
+            logger.info("[Attempt 2] Google cache: %s", cache_url)
             resp = await session.get(cache_url)
+            logger.info("[Attempt 2] Status=%d", resp.status_code)
             resp.raise_for_status()
-            logger.info("Google cache fetch succeeded for %s", url)
+            logger.info("[Attempt 2] SUCCESS")
             return _extract_text(resp.text, max_chars)
         except Exception as e2:
-            logger.warning("Google cache failed for %s: %s", url, e2)
+            logger.warning("[Attempt 2] FAILED — %s: %s", type(e2).__name__, e2)
 
         # Attempt 3: archive.org latest snapshot
         try:
             wb_url = f"https://web.archive.org/web/2/{url}"
+            logger.info("[Attempt 3] Wayback Machine: %s", wb_url)
             resp = await session.get(wb_url)
+            logger.info("[Attempt 3] Status=%d", resp.status_code)
             resp.raise_for_status()
-            logger.info("Wayback Machine fetch succeeded for %s", url)
+            logger.info("[Attempt 3] SUCCESS")
             return _extract_text(resp.text, max_chars)
         except Exception as e3:
-            logger.warning("Wayback Machine failed for %s: %s", url, e3)
+            logger.warning("[Attempt 3] FAILED — %s: %s", type(e3).__name__, e3)
 
+        # Attempt 4: Jina Reader (renders JS, bypasses blocks)
+        try:
+            jina_url = f"https://r.jina.ai/{url}"
+            logger.info("[Attempt 4] Jina Reader: %s", jina_url)
+            resp = await session.get(jina_url, headers={"Accept": "text/html"})
+            logger.info("[Attempt 4] Status=%d, content_length=%d", resp.status_code, len(resp.text))
+            resp.raise_for_status()
+            text = resp.text.strip()
+            if len(text) >= 500:
+                logger.info("[Attempt 4] SUCCESS — %d chars", len(text))
+                return text[:max_chars]
+            logger.warning("[Attempt 4] Content too short (%d chars)", len(text))
+        except Exception as e4:
+            logger.warning("[Attempt 4] FAILED — %s: %s", type(e4).__name__, e4)
+
+    logger.error("=== fetch_text ALL METHODS FAILED for %s ===", url)
     raise RuntimeError(f"Could not fetch privacy policy from {url} (all methods failed)")
 
 
