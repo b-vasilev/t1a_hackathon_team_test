@@ -25,13 +25,13 @@ function parsePuzzle(str) {
 function getConflicts(board) {
   const conflicts = new Set();
   for (let i = 0; i < 81; i++) {
-    if (board[i] === 0) continue;
+    if (board[i] === 0) { continue; }
     const row = Math.floor(i / 9);
     const col = i % 9;
     const boxRow = Math.floor(row / 3) * 3;
     const boxCol = Math.floor(col / 3) * 3;
     for (let j = 0; j < 81; j++) {
-      if (i === j || board[j] === 0 || board[j] !== board[i]) continue;
+      if (i === j || board[j] === 0 || board[j] !== board[i]) { continue; }
       const jr = Math.floor(j / 9);
       const jc = j % 9;
       const sameRow = jr === row;
@@ -48,8 +48,8 @@ function getConflicts(board) {
 
 export default function SudokuGame({ scanDone = false }) {
   const [puzzleIdx, setPuzzleIdx] = useState(() => Math.floor(Math.random() * PUZZLES.length));
-  const [given, setGiven] = useState([]);
-  const [board, setBoard] = useState([]);
+  const [given, setGiven] = useState(() => parsePuzzle(PUZZLES[puzzleIdx].given));
+  const [board, setBoard] = useState(() => parsePuzzle(PUZZLES[puzzleIdx].given));
   const [selected, setSelected] = useState(null);
   const [solved, setSolved] = useState(false);
   const [conflicts, setConflicts] = useState(new Set());
@@ -69,7 +69,7 @@ export default function SudokuGame({ scanDone = false }) {
   }, [puzzleIdx, loadPuzzle]);
 
   const applyInput = useCallback((val) => {
-    if (selected === null || given[selected] !== 0) return;
+    if (selected === null || given[selected] !== 0) { return; }
     const newBoard = [...board];
     newBoard[selected] = val;
     setBoard(newBoard);
@@ -81,7 +81,7 @@ export default function SudokuGame({ scanDone = false }) {
   }, [selected, given, board]);
 
   const handleKeyDown = useCallback((e) => {
-    if (selected === null) return;
+    if (selected === null) { return; }
     const num = parseInt(e.key);
     if (num >= 1 && num <= 9) {
       e.preventDefault();
@@ -112,7 +112,7 @@ export default function SudokuGame({ scanDone = false }) {
     let bg = 'var(--pl-surface)';
     let borderColor = 'var(--pl-border)';
     let color = 'var(--pl-text)';
-    let fontWeight = isGiven ? 700 : 400;
+    const fontWeight = isGiven ? 700 : 400;
     let boxShadow = 'none';
 
     if (solved) {
@@ -205,7 +205,7 @@ export default function SudokuGame({ scanDone = false }) {
             key={idx}
             style={cellStyle(idx)}
             onClick={() => {
-              if (given[idx] === 0) setSelected(idx);
+              if (given[idx] === 0) { setSelected(idx); }
               containerRef.current?.focus();
             }}
           >

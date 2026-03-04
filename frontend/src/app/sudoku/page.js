@@ -8,7 +8,7 @@ export default function SudokuPage() {
 
   useEffect(() => {
     // Check if scan already finished before this window opened
-    if (localStorage.getItem('pl_scan_done')) {
+    if (sessionStorage.getItem('pl_scan_done')) {
       setScanDone(true);
     }
 

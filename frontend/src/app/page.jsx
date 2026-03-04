@@ -42,7 +42,7 @@ export default function Home() {
 
   // Auto-dismiss scan complete toast after 8s
   useEffect(() => {
-    if (!scanComplete) return;
+    if (!scanComplete) { return; }
     const t = setTimeout(() => setScanComplete(false), 8000);
     return () => clearTimeout(t);
   }, [scanComplete]);
@@ -117,11 +117,14 @@ export default function Home() {
       const w = 520, h = 740;
       const left = Math.round(window.screenX + (window.outerWidth - w) / 2);
       const top = Math.round(window.screenY + (window.outerHeight - h) / 2);
-      sudokuWindowRef.current = window.open(
+      const popup = window.open(
         '/sudoku',
         'policylens-sudoku',
         `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`
       );
+      if (popup) {
+        sudokuWindowRef.current = popup;
+      }
     } else {
       sudokuWindowRef.current.focus();
     }
@@ -139,7 +142,7 @@ export default function Home() {
       setResults(data.results);
       setOverallGrade(data.overall_grade);
       setScanComplete(true);
-      localStorage.setItem('pl_scan_done', String(Date.now()));
+      sessionStorage.setItem('pl_scan_done', String(Date.now()));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -448,7 +451,10 @@ export default function Home() {
                 const w = 520, h = 740;
                 const left = Math.round(window.screenX + (window.outerWidth - w) / 2);
                 const top = Math.round(window.screenY + (window.outerHeight - h) / 2);
-                sudokuWindowRef.current = window.open('/sudoku', 'policylens-sudoku', `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`);
+                const popup = window.open('/sudoku', 'policylens-sudoku', `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`);
+                if (popup) {
+                  sudokuWindowRef.current = popup;
+                }
               } else {
                 sudokuWindowRef.current.focus();
               }

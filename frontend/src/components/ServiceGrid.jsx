@@ -25,7 +25,7 @@ export default function ServiceGrid({ services, selectedIds, onToggle, customSer
 
   const filtered = activeCategory === 'All'
     ? allServices
-    : allServices.filter(s => s.category === activeCategory || s.isCustom);
+    : allServices.filter(s => s.category === activeCategory);
 
   return (
     <div className="flex flex-col gap-4">
