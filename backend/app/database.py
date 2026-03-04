@@ -1,6 +1,10 @@
+import logging
 import os
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+
+logger = logging.getLogger("policylens.database")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./policylens.db")
 
@@ -8,6 +12,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./policylens.db")
 if DATABASE_URL.startswith("sqlite:///"):
     DATABASE_URL = DATABASE_URL.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
 
+logger.info("Database engine created | url=%s", DATABASE_URL)
 engine = create_async_engine(DATABASE_URL, echo=False)
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

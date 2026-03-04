@@ -33,6 +33,9 @@ fmt:
 test:
     cd backend && python -m pytest app/ -v
 
+# Format + lint all
+check: fmt lint
+
 # Full CI: lint + test + build
 ci: lint test
     cd frontend && npm run build

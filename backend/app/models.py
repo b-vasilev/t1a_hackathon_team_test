@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
-from sqlalchemy import Integer, String, Boolean, ForeignKey, DateTime, Text
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from .database import Base
 
 
@@ -13,9 +15,7 @@ class Service(Base):
     privacy_policy_url: Mapped[str | None] = mapped_column(String, nullable=True)
     is_popular: Mapped[bool] = mapped_column(Boolean, default=False)
     icon: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc)
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     analyses: Mapped[list["PolicyAnalysis"]] = relationship(
         "PolicyAnalysis", back_populates="service", cascade="all, delete-orphan"
@@ -30,12 +30,10 @@ class PolicyAnalysis(Base):
     grade: Mapped[str] = mapped_column(String, nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     red_flags: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
-    warnings: Mapped[str] = mapped_column(Text, nullable=False, default="[]")   # JSON
+    warnings: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
     categories: Mapped[str] = mapped_column(Text, default="{}")  # JSON
     highlights: Mapped[str] = mapped_column(Text, default="[]")  # JSON
     positives: Mapped[str] = mapped_column(Text, default="[]")  # JSON
-    analyzed_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc)
-    )
+    analyzed_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     service: Mapped["Service"] = relationship("Service", back_populates="analyses")

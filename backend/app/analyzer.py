@@ -1,28 +1,34 @@
 import json
+import logging
 import os
 import re
-import httpx
+
 import litellm
 from bs4 import BeautifulSoup
-from .prompts import GRADING_RUBRIC, ANALYSIS_USER_PROMPT, FIND_URL_SYSTEM, FIND_URL_USER
+from curl_cffi.requests import AsyncSession
+from curl_cffi.requests.errors import RequestsError
+
+from .prompts import ANALYSIS_USER_PROMPT, FIND_URL_SYSTEM, FIND_URL_USER, GRADING_RUBRIC
 
 LLM_MODEL = os.getenv("LLM_MODEL", "anthropic/claude-haiku-4-5-20251001")
 LLM_API_KEY = os.getenv("LLM_API_KEY")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    )
-}
+logger = logging.getLogger("policylens.analyzer")
 
 GPA_MAP = {
-    "A+": 4.3, "A": 4.0, "A-": 3.7,
-    "B+": 3.3, "B": 3.0, "B-": 2.7,
-    "C+": 2.3, "C": 2.0, "C-": 1.7,
-    "D+": 1.3, "D": 1.0, "D-": 0.7,
+    "A+": 4.3,
+    "A": 4.0,
+    "A-": 3.7,
+    "B+": 3.3,
+    "B": 3.0,
+    "B-": 2.7,
+    "C+": 2.3,
+    "C": 2.0,
+    "C-": 1.7,
+    "D+": 1.3,
+    "D": 1.0,
+    "D-": 0.7,
     "F": 0.0,
 }
 
@@ -44,21 +50,56 @@ def average_grade(grades: list[str]) -> str:
     return gpa_to_letter(avg)
 
 
+def _extract_text(html: str, max_chars: int) -> str:
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "nav", "footer", "header"]):
+        tag.decompose()
+    text = soup.get_text(separator=" ", strip=True)
+    return text[:max_chars]
+
+
 async def fetch_text(url: str, max_chars: int = 50000) -> str:
-    async with httpx.AsyncClient(headers=HEADERS, timeout=15, follow_redirects=True) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
-        for tag in soup(["script", "style", "nav", "footer", "header"]):
-            tag.decompose()
-        text = soup.get_text(separator=" ", strip=True)
-        return text[:max_chars]
+    logger.info("Fetching policy text from %s", url)
+    async with AsyncSession(impersonate="chrome", timeout=20) as session:
+        # Attempt 1: direct fetch
+        try:
+            resp = await session.get(url)
+            resp.raise_for_status()
+            logger.info("Direct fetch succeeded for %s (%d chars)", url, len(resp.text))
+            return _extract_text(resp.text, max_chars)
+        except RequestsError as e:
+            logger.warning("Direct fetch failed for %s: %s", url, e)
+
+        # Attempt 2: Google webcache
+        try:
+            from urllib.parse import quote_plus
+
+            cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{quote_plus(url)}"
+            resp = await session.get(cache_url)
+            resp.raise_for_status()
+            logger.info("Google cache fetch succeeded for %s", url)
+            return _extract_text(resp.text, max_chars)
+        except Exception as e2:
+            logger.warning("Google cache failed for %s: %s", url, e2)
+
+        # Attempt 3: archive.org latest snapshot
+        try:
+            wb_url = f"https://web.archive.org/web/2/{url}"
+            resp = await session.get(wb_url)
+            resp.raise_for_status()
+            logger.info("Wayback Machine fetch succeeded for %s", url)
+            return _extract_text(resp.text, max_chars)
+        except Exception as e3:
+            logger.warning("Wayback Machine failed for %s: %s", url, e3)
+
+    raise RuntimeError(f"Could not fetch privacy policy from {url} (all methods failed)")
 
 
 CATEGORY_KEYS = ["data_collection", "data_sharing", "data_retention", "tracking", "user_rights"]
 
 
 async def _llm_call(system: str, user: str, max_tokens: int = 1024) -> str:
+    logger.info("LLM call starting | model=%s | max_tokens=%d", LLM_MODEL, max_tokens)
     kwargs = dict(
         model=LLM_MODEL,
         messages=[
@@ -73,6 +114,13 @@ async def _llm_call(system: str, user: str, max_tokens: int = 1024) -> str:
     if LLM_BASE_URL:
         kwargs["api_base"] = LLM_BASE_URL
     response = await litellm.acompletion(**kwargs)
+    usage = response.usage
+    logger.info(
+        "LLM call completed | tokens: prompt=%d completion=%d total=%d",
+        usage.prompt_tokens,
+        usage.completion_tokens,
+        usage.total_tokens,
+    )
     return response.choices[0].message.content.strip()
 
 
@@ -129,9 +177,11 @@ def _normalize(data: dict) -> dict:
 
 
 async def find_privacy_policy_url(website_url: str) -> str | None:
+    logger.info("Discovering privacy policy URL for %s", website_url)
     try:
         homepage_text = await fetch_text(website_url, max_chars=5000)
     except Exception:
+        logger.warning("Could not fetch homepage for %s", website_url)
         return None
 
     raw = await _llm_call(
@@ -142,14 +192,18 @@ async def find_privacy_policy_url(website_url: str) -> str | None:
 
     result = raw.strip()
     if result == "NOT_FOUND" or not result.startswith("http"):
+        logger.info("No privacy policy URL found for %s", website_url)
         return None
+    logger.info("Found privacy policy URL for %s → %s", website_url, result)
     return result
 
 
 async def analyze_policy(privacy_policy_url: str) -> dict:
+    logger.info("Analyzing policy: %s", privacy_policy_url)
     try:
         policy_text = await fetch_text(privacy_policy_url, max_chars=50000)
     except Exception as e:
+        logger.error("Failed to fetch policy %s: %s", privacy_policy_url, e)
         return _empty_result(f"Could not fetch privacy policy: {e}")
 
     raw = await _llm_call(
@@ -175,4 +229,6 @@ async def analyze_policy(privacy_policy_url: str) -> dict:
         else:
             return _empty_result("Analysis failed — could not parse response.")
 
-    return _normalize(data)
+    result = _normalize(data)
+    logger.info("Analysis complete for %s → grade=%s", privacy_policy_url, result["grade"])
+    return result

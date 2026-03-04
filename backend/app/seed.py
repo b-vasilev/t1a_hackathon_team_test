@@ -1,6 +1,11 @@
-from sqlalchemy.ext.asyncio import AsyncSession
+import logging
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from .models import Service
+
+logger = logging.getLogger("policylens.seed")
 
 
 def _favicon(domain: str) -> str:
@@ -66,11 +71,13 @@ POPULAR_SERVICES = [
 
 
 async def seed_popular_services(db: AsyncSession) -> None:
-    result = await db.execute(select(Service).where(Service.is_popular == True).limit(1))
+    result = await db.execute(select(Service).where(Service.is_popular).limit(1))
     existing = result.scalar_one_or_none()
     if existing:
+        logger.info("Popular services already seeded, skipping")
         return
 
+    logger.info("Seeding %d popular services", len(POPULAR_SERVICES))
     for svc in POPULAR_SERVICES:
         service = Service(
             name=svc["name"],

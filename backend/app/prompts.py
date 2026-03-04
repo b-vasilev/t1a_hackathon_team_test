@@ -1,7 +1,8 @@
 """Prompt templates for PolicyLens LLM calls."""
 
 GRADING_RUBRIC = """\
-You are a privacy policy analyst. Grade the given privacy policy across 5 categories using a letter grade from A+ (excellent privacy) to F (terrible privacy).
+You are a privacy policy analyst. Grade the given privacy policy across 5 categories \
+using a letter grade from A+ (excellent privacy) to F (terrible privacy).
 
 Categories:
 - data_collection: What personal data is collected, how much, how sensitive (e.g. biometrics, financial, health data).
