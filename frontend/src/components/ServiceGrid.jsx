@@ -5,7 +5,7 @@ import ServiceIcon from '@/components/ServiceIcon';
 
 const CATEGORY_ORDER = ['All', 'Social', 'Messaging', 'Streaming', 'Shopping & Finance', 'Productivity'];
 
-export default function ServiceGrid({ services, selectedIds, onToggle, customServices, onRemoveCustom }) {
+export default function ServiceGrid({ services, selectedIds, onToggle, customServices, onRemoveCustom, compareMode = false, slotOrder = [] }) {
   const [activeCategory, setActiveCategory] = useState('All');
 
   const allServices = [
@@ -123,7 +123,7 @@ export default function ServiceGrid({ services, selectedIds, onToggle, customSer
               >
                 {svc.name}
               </span>
-              {selected && (
+              {selected && !compareMode && (
                 <span
                   className="absolute bottom-1.5 right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
                   style={{ background: 'var(--pl-accent)', color: 'var(--pl-bg)', boxShadow: '0 0 6px rgba(0, 229, 255, 0.5)' }}
@@ -131,6 +131,21 @@ export default function ServiceGrid({ services, selectedIds, onToggle, customSer
                   &#x2713;
                 </span>
               )}
+              {selected && compareMode && (() => {
+                const slot = slotOrder.indexOf(svc.id);
+                const isA = slot === 0;
+                return (
+                  <span
+                    className="absolute bottom-1.5 right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
+                    style={isA
+                      ? { background: 'var(--pl-accent)', color: 'var(--pl-bg)', boxShadow: '0 0 6px rgba(0, 229, 255, 0.5)' }
+                      : { background: '#f97316', color: '#fff', boxShadow: '0 0 6px rgba(249, 115, 22, 0.5)' }
+                    }
+                  >
+                    {isA ? 'A' : 'B'}
+                  </span>
+                );
+              })()}
             </div>
           );
         })}
