@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.analyzer import analyze_policy, find_privacy_policy_url, get_service_actions
+from app.analyzer import analyze_policy, analyze_policy_text, find_privacy_policy_url, get_service_actions
 
 
 @pytest.mark.asyncio
@@ -224,3 +224,59 @@ class TestGetServiceActions:
         result = await get_service_actions("Example", "https://www.example.com")
         assert len(result) == 1
         assert result[0]["label"] == "Valid"
+
+
+SAMPLE_LLM_RESPONSE = json.dumps(
+    {
+        "categories": {
+            "data_collection": {"grade": "B", "finding": "Collects email"},
+            "data_sharing": {"grade": "B", "finding": "Shares with partners"},
+            "data_retention": {"grade": "B", "finding": "Retains 2 years"},
+            "tracking": {"grade": "B", "finding": "Uses cookies"},
+            "user_rights": {"grade": "B", "finding": "Can request deletion"},
+        },
+        "highlights": ["Decent policy overall"],
+        "red_flags": ["Shares data with third parties"],
+        "warnings": ["Cookie tracking"],
+        "positives": ["Allows data deletion"],
+    }
+)
+
+LONG_TEXT = "This is a privacy policy text. " * 100  # > 50 chars
+
+
+@pytest.mark.asyncio
+class TestAnalyzePolicyText:
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock)
+    async def test_valid_text(self, mock_llm):
+        mock_llm.return_value = SAMPLE_LLM_RESPONSE
+        result = await analyze_policy_text(LONG_TEXT, service_name="TestService")
+        assert result["grade"] != "N/A"
+        assert len(result["red_flags"]) == 1
+        assert len(result["positives"]) == 1
+
+    async def test_empty_text_returns_empty_result(self):
+        result = await analyze_policy_text("", service_name="TestService")
+        assert result["grade"] == "N/A"
+        assert "too short" in result["summary"].lower()
+
+    async def test_short_text_returns_empty_result(self):
+        result = await analyze_policy_text("short", service_name="TestService")
+        assert result["grade"] == "N/A"
+        assert "too short" in result["summary"].lower()
+
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock)
+    async def test_unparseable_response(self, mock_llm):
+        mock_llm.return_value = "This is not JSON at all"
+        result = await analyze_policy_text(LONG_TEXT)
+        assert result["grade"] == "N/A"
+        assert "could not parse" in result["summary"].lower()
+
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock, side_effect=Exception("boom"))
+    async def test_llm_unavailable_returns_mock(self, mock_llm):
+        from app.analyzer import LLMUnavailableError
+
+        mock_llm.side_effect = LLMUnavailableError("unavailable")
+        result = await analyze_policy_text(LONG_TEXT, service_name="TestService")
+        # Should return a mock result, not raise
+        assert "grade" in result

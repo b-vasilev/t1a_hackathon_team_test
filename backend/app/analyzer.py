@@ -754,6 +754,45 @@ async def analyze_policy(privacy_policy_url: str, service_name: str = "") -> dic
     return result
 
 
+async def analyze_policy_text(text: str, service_name: str = "") -> dict:
+    """Analyze a raw privacy policy text — no URL fetching."""
+    logger.info("Analyzing raw policy text (%d chars) for '%s'", len(text), service_name or "<unnamed>")
+
+    if not text or len(text.strip()) < 50:
+        return _empty_result("Policy text is too short to analyze.")
+
+    try:
+        raw = await _llm_call(
+            system=GRADING_RUBRIC,
+            user=ANALYSIS_USER_PROMPT.format(policy_text=text[:60000]),
+            max_tokens=2048,
+        )
+    except LLMUnavailableError:
+        logger.warning("LLM unavailable for raw text analysis of '%s'", service_name)
+        return get_mock_analysis(service_name)
+
+    raw = re.sub(r"^```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```$", "", raw)
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            try:
+                data = json.loads(match.group())
+            except json.JSONDecodeError:
+                return _empty_result("Analysis failed — could not parse response.")
+        else:
+            return _empty_result("Analysis failed — could not parse response.")
+
+    result = _normalize(data)
+    result["policy_text"] = text
+    result["was_truncated"] = len(text) > 60000
+    logger.info("Raw text analysis complete for '%s' → grade=%s", service_name, result["grade"])
+    return result
+
+
 async def get_service_actions(service_name: str, website_url: str, policy_url: str | None = None) -> list[dict]:
     """Discover privacy action links (delete account, download data, etc.) for a service."""
     logger.info("Discovering privacy actions for %s (%s)", service_name, website_url)
