@@ -1,5 +1,5 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import RiskProfile from "./RiskProfile";
 
 const mockResults = [
@@ -39,6 +39,10 @@ const mockResults = [
 ];
 
 describe("RiskProfile", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("returns null when no results", () => {
     const { container } = render(
       <RiskProfile overallGrade="N/A" results={[]} />
@@ -207,5 +211,67 @@ describe("RiskProfile", () => {
     render(<RiskProfile overallGrade="C" results={results} />);
     expect(screen.getByText("ServiceOne")).toBeInTheDocument();
     expect(screen.getByText("ServiceTwo")).toBeInTheDocument();
+  });
+
+  it("shows Share button when results are present", () => {
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    expect(screen.getByTestId("share-button")).toBeInTheDocument();
+  });
+
+  it("clicking Share button opens modal with correct URL", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "abc123def456" }),
+    });
+
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    fireEvent.click(screen.getByTestId("share-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("share-url-input")).toBeInTheDocument();
+    });
+
+    const input = screen.getByTestId("share-url-input");
+    expect(input.value).toContain("/report/abc123def456");
+  });
+
+  it("Copy button writes to clipboard and shows Copied!", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "abc123def456" }),
+    });
+    const writeTextMock = vi.fn().mockResolvedValueOnce(undefined);
+    Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    fireEvent.click(screen.getByTestId("share-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("copy-button")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("copy-button"));
+
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalled();
+      expect(screen.getByText("Copied!")).toBeInTheDocument();
+    });
+  });
+
+  it("Close button dismisses the share modal", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "abc123def456" }),
+    });
+
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    fireEvent.click(screen.getByTestId("share-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("share-url-input")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByLabelText("Close share modal"));
+    expect(screen.queryByTestId("share-url-input")).not.toBeInTheDocument();
   });
 });

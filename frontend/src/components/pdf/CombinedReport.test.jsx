@@ -56,7 +56,7 @@ const mockResults = [
 ];
 
 const mockPolicyTexts = {
-  1: 'Google privacy policy text here.\nSecond paragraph.',
+  1: { content: 'Google privacy policy text here.\nSecond paragraph.' },
   2: null,
 };
 
@@ -150,9 +150,12 @@ describe('CombinedReport', () => {
   });
 
   it('renders policy text paragraphs from policyTexts', () => {
-    render(<CombinedReport results={mockResults} policyTexts={mockPolicyTexts} />);
-    expect(screen.getByText('Google privacy policy text here.')).toBeInTheDocument();
-    expect(screen.getByText('Second paragraph.')).toBeInTheDocument();
+    const { container } = render(
+      <CombinedReport results={mockResults} policyTexts={mockPolicyTexts} />,
+    );
+    // Policy text is rendered inside nested segment spans
+    expect(container.textContent).toContain('Google privacy policy text here.');
+    expect(container.textContent).toContain('Second paragraph.');
   });
 
   it('renders findings sections', () => {
