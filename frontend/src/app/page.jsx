@@ -6,6 +6,7 @@ import ServiceGrid from '@/components/ServiceGrid';
 import AddService from '@/components/AddService';
 import RiskProfile from '@/components/RiskProfile';
 import CompareTab from '@/components/CompareTab';
+import CustomPolicyTab from '@/components/CustomPolicyTab';
 
 const SS_KEYS = {
   selectedIds: 'pl_selectedIds',
@@ -255,17 +256,21 @@ export default function Home() {
           className="flex gap-1 p-1 rounded-full"
           style={{ background: 'var(--pl-surface)', border: '1px solid var(--pl-border)' }}
         >
-          {['analyze', 'compare'].map((tab) => (
+          {[
+            { id: 'analyze', label: 'Analyze' },
+            { id: 'compare', label: 'Compare' },
+            { id: 'custom', label: 'Custom Policy' },
+          ].map(({ id, label }) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={id}
+              onClick={() => setActiveTab(id)}
               className="px-5 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer capitalize"
-              style={activeTab === tab
+              style={activeTab === id
                 ? { background: 'var(--pl-accent)', color: 'var(--pl-bg)' }
                 : { color: 'var(--pl-text-muted)' }
               }
             >
-              {tab === 'analyze' ? 'Analyze' : 'Compare'}
+              {label}
             </button>
           ))}
         </div>
@@ -713,6 +718,10 @@ export default function Home() {
 
       {activeTab === 'compare' && (
         <CompareTab services={services} />
+      )}
+
+      {activeTab === 'custom' && (
+        <CustomPolicyTab />
       )}
 
       {/* Scan complete toast */}

@@ -21,6 +21,7 @@ from .analyzer import (
     LLM_MODEL,
     LLMUnavailableError,
     analyze_policy,
+    analyze_policy_text,
     average_grade,
     chat_about_policy,
     find_privacy_policy_url,
@@ -395,6 +396,54 @@ async def analyze_services(
         "overall_grade": overall,
         "results": list(results),
     }
+
+
+class AnalyzeTextRequest(BaseModel):
+    text: str
+    name: str = "Custom Policy"
+
+    @field_validator("text")
+    @classmethod
+    def text_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v or len(v) < 50:
+            raise ValueError("text must be at least 50 characters")
+        if len(v) > 200_000:
+            raise ValueError("text must not exceed 200,000 characters")
+        return v
+
+    @field_validator("name")
+    @classmethod
+    def name_strip(cls, v: str) -> str:
+        return v.strip() or "Custom Policy"
+
+
+@app.post("/api/analyze-text")
+@limiter.limit(RATE_LIMIT)
+async def analyze_text(req: AnalyzeTextRequest, request: Request):
+    """Analyze pasted policy text directly — no URL fetching, no caching."""
+    try:
+        data = await analyze_policy_text(req.text, service_name=req.name)
+    except Exception as e:
+        logger.error("Raw text analysis error: %s", e)
+        raise HTTPException(status_code=500, detail="Analysis failed. Please try again later.")
+
+    result = {
+        "service_id": None,
+        "name": req.name,
+        "icon": None,
+        "grade": data["grade"],
+        "summary": data["summary"],
+        "red_flags": data["red_flags"],
+        "warnings": data["warnings"],
+        "positives": data.get("positives", []),
+        "categories": data.get("categories", {}),
+        "highlights": data.get("highlights", []),
+        "actions": [],
+        "cached": False,
+        "mock": data.get("mock", False),
+    }
+    return {"overall_grade": data["grade"], "results": [result]}
 
 
 # ── Chat ─────────────────────────────────────────────────────────────────────
