@@ -174,7 +174,7 @@ function ServiceCard({ result, onRescan, isLoading }) {
               </button>
             )}
           </div>
-          <p className="text-sm mt-1" style={{ color: 'var(--pl-text-muted)' }}>{result.summary}</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--pl-text-muted)' }}>{result.tldr || result.summary}</p>
         </div>
       </div>
 
@@ -552,6 +552,21 @@ function ShareModal({ url, onClose }) {
   );
 }
 
+function computeOverallTldr(results) {
+  const total = results.length;
+  const poor = results.filter((r) => r.grade && (r.grade[0] === 'D' || r.grade[0] === 'F')).length;
+  const good = results.filter((r) => r.grade && (r.grade[0] === 'A' || r.grade[0] === 'B')).length;
+
+  if (poor > total / 2) {
+    return `${poor} of ${total} services pose significant privacy risks \u2014 review your data exposure`;
+  }
+  if (good === total) {
+    return `All ${total} services maintain strong privacy practices \u2014 nice choices`;
+  }
+  const needAttention = total - good;
+  return `Mixed results across ${total} services \u2014 ${needAttention} need attention`;
+}
+
 export default function RiskProfile({ overallGrade, results, onRescanService, onClearCache, isLoading }) {
   const [generatingCombined, setGeneratingCombined] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -638,6 +653,16 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
           </h2>
           <p className="text-sm mt-1" style={{ color: 'var(--pl-text-muted)' }}>
             Based on {results.length} service{results.length !== 1 ? 's' : ''} analyzed
+          </p>
+          <p
+            className="text-sm mt-2"
+            style={{
+              color: 'var(--pl-accent)',
+              fontStyle: 'italic',
+              fontFamily: 'var(--font-mono)',
+            }}
+          >
+            &gt; {computeOverallTldr(results)}
           </p>
           <div className="flex gap-4 mt-3 text-sm" style={{ fontFamily: 'var(--font-mono)' }}>
             <span className="flex items-center gap-1.5">

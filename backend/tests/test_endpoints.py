@@ -89,6 +89,7 @@ class TestAnalyzeEndpoint:
         return_value={
             "grade": "B+",
             "summary": "Decent policy",
+            "tldr": "Decent but shares data with third parties.",
             "red_flags": ["Shares data"],
             "warnings": ["Cookies"],
             "positives": ["Allows deletion"],
@@ -107,6 +108,7 @@ class TestAnalyzeEndpoint:
         assert data["overall_grade"] == "B+"
         assert len(data["results"]) == 1
         assert data["results"][0]["grade"] == "B+"
+        assert data["results"][0]["tldr"] == "Decent but shares data with third parties."
         assert data["results"][0]["cached"] is False
 
     @patch("app.main.get_service_actions", new_callable=AsyncMock, return_value=[])
@@ -116,6 +118,7 @@ class TestAnalyzeEndpoint:
         return_value={
             "grade": "A",
             "summary": "Great",
+            "tldr": "Excellent privacy practices across the board.",
             "red_flags": [],
             "warnings": [],
             "positives": ["Transparent"],
@@ -133,6 +136,7 @@ class TestAnalyzeEndpoint:
         resp = await client.post("/api/analyze", json={"service_ids": [sid]})
         data = resp.json()
         assert data["results"][0]["cached"] is True
+        assert data["results"][0]["tldr"] == "Excellent privacy practices across the board."
         # analyze_policy should only be called once (first time)
         assert mock_analyze.call_count == 1
 
@@ -148,6 +152,7 @@ LONG_TEXT = "This is a privacy policy text. " * 100  # well over 50 chars
 MOCK_ANALYSIS = {
     "grade": "B",
     "summary": "Decent policy",
+    "tldr": "Decent policy with some data sharing concerns.",
     "red_flags": ["Shares data"],
     "warnings": ["Cookies"],
     "positives": ["Allows deletion"],
@@ -170,6 +175,7 @@ class TestAnalyzeTextEndpoint:
         assert data["overall_grade"] == "B"
         assert len(data["results"]) == 1
         assert data["results"][0]["name"] == "My Policy"
+        assert data["results"][0]["tldr"] == "Decent policy with some data sharing concerns."
         assert data["results"][0]["cached"] is False
 
     async def test_empty_text_returns_422(self, client):

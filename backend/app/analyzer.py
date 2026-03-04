@@ -629,6 +629,7 @@ def _empty_result(summary: str) -> dict:
     return {
         "grade": "N/A",
         "summary": summary,
+        "tldr": summary,
         "red_flags": [],
         "warnings": [],
         "positives": [],
@@ -675,9 +676,14 @@ def _normalize(data: dict) -> dict:
     warnings = _normalize_findings(data.get("warnings", []))
     positives = _normalize_findings(data.get("positives", []))
 
+    tldr = data.get("tldr", "")
+    if not tldr:
+        tldr = highlights[0] if highlights else "Analysis complete."
+
     return {
         "grade": overall_grade,
         "summary": highlights[0] if highlights else "Analysis complete.",
+        "tldr": tldr,
         "red_flags": red_flags[:3],
         "warnings": warnings[:3],
         "positives": positives[:3],

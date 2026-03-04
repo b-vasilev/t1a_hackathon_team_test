@@ -45,6 +45,7 @@ class PolicyAnalysis(Base):
     service_id: Mapped[int] = mapped_column(Integer, ForeignKey("services.id"), nullable=False)
     grade: Mapped[str] = mapped_column(String, nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
+    tldr: Mapped[str] = mapped_column(Text, nullable=False, default="")
     red_flags: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
     warnings: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
     categories: Mapped[str] = mapped_column(Text, default="{}")  # JSON

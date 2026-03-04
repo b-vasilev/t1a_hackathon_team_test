@@ -53,7 +53,8 @@ Analyze this privacy policy and return a JSON object with this exact schema:
   ],
   "positives": [
     {{"text": "Users can request full data deletion", "quote": "You may request deletion of all personal data"}}
-  ]
+  ],
+  "tldr": "Google collects nearly everything and shares it widely — be cautious"
 }}
 
 Rules:
@@ -63,6 +64,7 @@ Rules:
 - red_flags: up to 3 serious privacy concerns as objects.
 - warnings: up to 3 moderate concerns as objects.
 - positives: up to 3 good privacy practices as objects.
+- tldr: a single punchy sentence (max 120 chars) summarizing the overall privacy risk.
 - Each object MUST have "text" (plain English summary, max 80 chars) \
 and "quote" (exact verbatim excerpt from the policy text).
 - The "quote" MUST be a word-for-word excerpt from the policy. Do NOT paraphrase or modify the quote.

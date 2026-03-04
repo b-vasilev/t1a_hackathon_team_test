@@ -106,6 +106,7 @@ class TestChatEndpoint:
         return_value={
             "grade": "B",
             "summary": "OK",
+            "tldr": "OK policy overall.",
             "red_flags": [],
             "warnings": [],
             "positives": [],
@@ -139,6 +140,7 @@ class TestChatEndpoint:
         return_value={
             "grade": "B+",
             "summary": "Decent policy",
+            "tldr": "Decent policy with minor concerns.",
             "red_flags": [],
             "warnings": [],
             "positives": [],
@@ -201,6 +203,7 @@ class TestChatEndpoint:
         return_value={
             "grade": "B+",
             "summary": "Decent policy",
+            "tldr": "Decent policy with minor concerns.",
             "red_flags": [],
             "warnings": [],
             "positives": [],

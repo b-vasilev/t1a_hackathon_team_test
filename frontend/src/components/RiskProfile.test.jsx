@@ -119,7 +119,7 @@ describe("RiskProfile", () => {
 
   it("shows service count", () => {
     render(<RiskProfile overallGrade="B" results={mockResults} />);
-    expect(screen.getByText(/2 service/)).toBeInTheDocument();
+    expect(screen.getByText(/Based on 2 service/)).toBeInTheDocument();
   });
 
   it("does not show mock banner for real results", () => {
@@ -273,5 +273,70 @@ describe("RiskProfile", () => {
 
     fireEvent.click(screen.getByLabelText("Close share modal"));
     expect(screen.queryByTestId("share-url-input")).not.toBeInTheDocument();
+  });
+
+  // ── TL;DR tests ──
+
+  it("shows tldr text when available on service card", () => {
+    const resultsWithTldr = [
+      { ...mockResults[0], tldr: "Short TL;DR for ServiceOne" },
+      mockResults[1],
+    ];
+    render(<RiskProfile overallGrade="B" results={resultsWithTldr} />);
+    expect(screen.getByText("Short TL;DR for ServiceOne")).toBeInTheDocument();
+    // summary should NOT appear when tldr is present
+    expect(screen.queryByText("Decent privacy policy")).not.toBeInTheDocument();
+  });
+
+  it("falls back to summary when tldr is missing", () => {
+    // mockResults[0] has no tldr field, so summary should show
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    expect(screen.getByText("Decent privacy policy")).toBeInTheDocument();
+    expect(screen.getByText("Below average policy")).toBeInTheDocument();
+  });
+
+  it("displays overall TL;DR in risk profile header", () => {
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    // mockResults: B+ and C → 1 good, 1 not good → "Mixed results across 2 services — 1 need attention"
+    expect(
+      screen.getByText(/Mixed results across 2 services/)
+    ).toBeInTheDocument();
+  });
+
+  it("shows appropriate message for mostly bad grades", () => {
+    const badResults = [
+      { ...mockResults[0], grade: "D", red_flags: [], warnings: [], positives: [] },
+      { ...mockResults[1], grade: "F" },
+      {
+        service_id: 3,
+        name: "ServiceThree",
+        icon: "https://example.com/three.png",
+        grade: "D-",
+        summary: "Poor policy",
+        red_flags: [],
+        warnings: [],
+        positives: [],
+        categories: {},
+        highlights: [],
+        actions: [],
+      },
+    ];
+    render(<RiskProfile overallGrade="D" results={badResults} />);
+    // 3 out of 3 are D/F → poor > total/2
+    expect(
+      screen.getByText(/3 of 3 services pose significant privacy risks/)
+    ).toBeInTheDocument();
+  });
+
+  it("shows appropriate message for mostly good grades", () => {
+    const goodResults = [
+      { ...mockResults[0], grade: "A+" },
+      { ...mockResults[1], grade: "B+", summary: "Good policy" },
+    ];
+    render(<RiskProfile overallGrade="A" results={goodResults} />);
+    // All are A/B → good === total
+    expect(
+      screen.getByText(/All 2 services maintain strong privacy practices/)
+    ).toBeInTheDocument();
   });
 });
