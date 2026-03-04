@@ -38,7 +38,7 @@ POLICY_CACHE_TTL_DAYS = int(os.getenv("POLICY_CACHE_TTL_DAYS", "7"))
 RATE_LIMIT = os.getenv("RATE_LIMIT", "60/minute")
 
 setup_logging()
-logger = logging.getLogger("policylens.main")
+logger = logging.getLogger("privacylens.main")
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[RATE_LIMIT])
 
@@ -46,7 +46,7 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[RATE_LIMIT])
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    logger.info("PolicyLens starting | model=%s | log_level=%s", LLM_MODEL, log_level)
+    logger.info("PrivacyLens starting | model=%s | log_level=%s", LLM_MODEL, log_level)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -56,10 +56,10 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    logger.info("PolicyLens shutting down")
+    logger.info("PrivacyLens shutting down")
 
 
-app = FastAPI(title="PolicyLens API", lifespan=lifespan)
+app = FastAPI(title="PrivacyLens API", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 

@@ -70,7 +70,7 @@ export default function Home() {
       const w = 520, h = 740;
       const left = Math.round(window.screenX + (window.outerWidth - w) / 2);
       const top = Math.round(window.screenY + (window.outerHeight - h) / 2);
-      const popup = window.open('/sudoku', 'policylens-sudoku', `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`);
+      const popup = window.open('/sudoku', 'privacylens-sudoku', `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`);
       if (popup) {
         sudokuWindowRef.current = popup;
       }
@@ -280,7 +280,7 @@ export default function Home() {
       <header className="hero-section scan-line relative py-12 md:py-20 flex flex-col gap-5 text-center items-center">
         <Image
           src="/policy-icon.svg"
-          alt="PolicyLens icon"
+          alt="PrivacyLens icon"
           className="relative z-1"
           width={80}
           height={92}
@@ -295,7 +295,7 @@ export default function Home() {
           className="hero-title text-5xl md:text-6xl font-bold tracking-tight relative z-1"
           style={{ fontFamily: 'var(--font-heading)' }}
         >
-          PolicyLens
+          PrivacyLens
         </h1>
         <p
           className="text-2xl md:text-3xl font-semibold tracking-tight relative z-1"
@@ -781,7 +781,7 @@ export default function Home() {
       <footer className="flex justify-center pt-4 pb-2">
         <span className="hackathon-badge">
           <span style={{ color: 'var(--pl-accent)' }}>&#9670;</span>
-          T1A Hackathon 2026 — PolicyLens
+          T1A Hackathon 2026 — PrivacyLens
         </span>
       </footer>
     </main>

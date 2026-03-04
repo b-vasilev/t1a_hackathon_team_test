@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with the PolicyLens hackathon project.
+This file provides guidance to Claude Code when working with the PrivacyLens hackathon project.
 
 ## Project Overview
 
-**PolicyLens** — "Know what you're agreeing to." Fetches and analyzes privacy policies of online services using Claude AI. Users select popular services or paste any URL, and the app grades each policy from A+ to F, surfacing red flags, warnings, and positives in plain English.
+**PrivacyLens** — "Know what you're agreeing to." Fetches and analyzes privacy policies of online services using Claude AI. Users select popular services or paste any URL, and the app grades each policy from A+ to F, surfacing red flags, warnings, and positives in plain English.
 
 No account required. All client state lives in `sessionStorage`.
 

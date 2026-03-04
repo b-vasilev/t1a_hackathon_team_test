@@ -29,7 +29,7 @@ LLM_MODEL = os.getenv("LLM_MODEL", "anthropic/claude-haiku-4-5-20251001")
 LLM_API_KEY = os.getenv("LLM_API_KEY")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 
-logger = logging.getLogger("policylens.analyzer")
+logger = logging.getLogger("privacylens.analyzer")
 
 
 class LLMUnavailableError(Exception):

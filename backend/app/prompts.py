@@ -1,4 +1,4 @@
-"""Prompt templates for PolicyLens LLM calls."""
+"""Prompt templates for PrivacyLens LLM calls."""
 
 GRADING_RUBRIC = """\
 You are a privacy policy analyst. Grade the given privacy policy across 5 categories \

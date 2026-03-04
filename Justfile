@@ -1,4 +1,4 @@
-# PolicyLens — run `just` to see commands
+# PrivacyLens — run `just` to see commands
 
 default:
     @just --list
@@ -17,7 +17,7 @@ reset:
 
 # Remove local SQLite database
 remove-db:
-    rm -f backend/policylens.db data/policylens.db
+    rm -f backend/privacylens.db data/privacylens.db
 
 # Install all deps locally
 install:

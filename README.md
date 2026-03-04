@@ -1,10 +1,10 @@
-# PolicyLens
+# PrivacyLens
 
 **Know what you're agreeing to.**
 
 The average privacy policy is 4,000 words of dense legal text. A Stanford study found it would take 76 work days per year to read every policy you agree to. Nobody does — and companies know it.
 
-PolicyLens changes that. Select from 27 popular services or paste any URL, and our AI reads the entire policy for you — grading it from A+ to F, surfacing red flags with verbatim quotes, and telling you exactly what to do about it.
+PrivacyLens changes that. Select from 27 popular services or paste any URL, and our AI reads the entire policy for you — grading it from A+ to F, surfacing red flags with verbatim quotes, and telling you exactly what to do about it.
 
 No account required. No data stored. Runs entirely in your browser session.
 
@@ -16,7 +16,7 @@ Every day, millions of people click "I Agree" without reading a single word. Pri
 
 ## Our Solution
 
-PolicyLens fetches the actual privacy policy text, sends it through Claude AI for structured analysis, and returns a clear, actionable report in seconds. Every finding is backed by a **verbatim quote** from the policy — not a summary, not a paraphrase, but the exact words the company wrote.
+PrivacyLens fetches the actual privacy policy text, sends it through Claude AI for structured analysis, and returns a clear, actionable report in seconds. Every finding is backed by a **verbatim quote** from the policy — not a summary, not a paraphrase, but the exact words the company wrote.
 
 ---
 

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import Service
 
-logger = logging.getLogger("policylens.seed")
+logger = logging.getLogger("privacylens.seed")
 
 
 def _favicon(domain: str) -> str:
