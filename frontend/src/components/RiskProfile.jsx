@@ -463,7 +463,22 @@ function ServiceCard({ result, onRescan, isLoading }) {
 }
 
 export default function RiskProfile({ overallGrade, results, onRescanService, onClearCache, isLoading }) {
+  const [generatingCombined, setGeneratingCombined] = useState(false);
+
   if (!results || results.length === 0) { return null; }
+
+  const handleDownloadCombinedPdf = async () => {
+    setGeneratingCombined(true);
+    try {
+      const { generateCombinedReport } = await import('./pdf/generateCombinedReport');
+      await generateCombinedReport(results);
+    } catch (err) {
+      console.error('Combined PDF generation failed:', err);
+      alert('Failed to generate combined PDF report. Please try again.');
+    } finally {
+      setGeneratingCombined(false);
+    }
+  };
 
   const hasMockResults = results.some((r) => r.mock);
   const totalRedFlags = results.reduce((n, r) => n + (r.red_flags?.length || 0), 0);
@@ -524,24 +539,56 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
               <span style={{ color: 'var(--pl-text-muted)' }}>{totalClean} positive{totalClean !== 1 ? 's' : ''}</span>
             </span>
           </div>
-          {onClearCache && (
+          <div className="flex gap-2 mt-3">
             <button
-              onClick={onClearCache}
-              disabled={isLoading}
-              className="mt-3 text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              onClick={handleDownloadCombinedPdf}
+              disabled={generatingCombined || isLoading}
+              title={generatingCombined ? 'Generating combined PDF report...' : 'Download combined PDF report'}
+              className="text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5"
               style={{
                 fontFamily: 'var(--font-mono)',
-                color: 'var(--pl-text-muted)',
-                background: 'rgba(102, 102, 128, 0.08)',
-                border: '1px solid rgba(102, 102, 128, 0.2)',
-                opacity: isLoading ? 0.5 : 1,
+                color: 'var(--pl-accent)',
+                background: 'rgba(0, 229, 255, 0.08)',
+                border: '1px solid var(--pl-accent)',
+                opacity: (generatingCombined || isLoading) ? 0.5 : 1,
               }}
-              onMouseEnter={(e) => { if (!isLoading) { e.currentTarget.style.background = 'rgba(102, 102, 128, 0.15)'; } }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(102, 102, 128, 0.08)'; }}
+              onMouseEnter={(e) => { if (!generatingCombined && !isLoading) { e.currentTarget.style.background = 'rgba(0, 229, 255, 0.15)'; } }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 229, 255, 0.08)'; }}
             >
-              Clear Cache
+              {generatingCombined ? (
+                <svg
+                  className="w-3 h-3" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+                  style={{ animation: 'xraySpin 1s linear infinite' }}
+                >
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+              ) : (
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 18h16" />
+                </svg>
+              )}
+              {generatingCombined ? 'Generating...' : 'Download PDF'}
             </button>
-          )}
+            {onClearCache && (
+              <button
+                onClick={onClearCache}
+                disabled={isLoading}
+                className="text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  color: 'var(--pl-text-muted)',
+                  background: 'rgba(102, 102, 128, 0.08)',
+                  border: '1px solid rgba(102, 102, 128, 0.2)',
+                  opacity: isLoading ? 0.5 : 1,
+                }}
+                onMouseEnter={(e) => { if (!isLoading) { e.currentTarget.style.background = 'rgba(102, 102, 128, 0.15)'; } }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(102, 102, 128, 0.08)'; }}
+              >
+                Clear Cache
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
