@@ -8,7 +8,12 @@ from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,9 +34,12 @@ from .models import PolicyAnalysis, PolicyText, Service
 from .seed import seed_popular_services
 
 POLICY_CACHE_TTL_DAYS = int(os.getenv("POLICY_CACHE_TTL_DAYS", "7"))
+RATE_LIMIT = os.getenv("RATE_LIMIT", "60/minute")
 
 setup_logging()
 logger = logging.getLogger("policylens.main")
+
+limiter = Limiter(key_func=get_remote_address, default_limits=[RATE_LIMIT])
 
 
 @asynccontextmanager
@@ -51,6 +59,17 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="PolicyLens API", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please try again later."},
+    )
+
 
 app.add_middleware(
     CORSMiddleware,

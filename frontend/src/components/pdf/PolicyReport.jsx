@@ -131,33 +131,54 @@ const styles = StyleSheet.create({
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
     marginBottom: 16,
   },
   categoryCard: {
     width: '48%',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  categoryAccentBar: {
+    height: 3,
+  },
+  categoryCardBody: {
     backgroundColor: SURFACE,
-    borderRadius: 6,
-    padding: 10,
-    borderLeftWidth: 3,
-    borderLeftStyle: 'solid',
+    padding: 12,
+    paddingTop: 10,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor: BORDER,
+    borderStyle: 'solid',
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   categoryName: {
-    fontSize: 9,
-    fontWeight: 600,
+    fontSize: 10,
+    fontWeight: 700,
     color: TEXT_WHITE,
-    marginBottom: 3,
+  },
+  categoryGradeBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   categoryGrade: {
     fontFamily: 'JetBrains Mono',
-    fontSize: 8,
-    fontWeight: 600,
-    marginBottom: 4,
+    fontSize: 9,
+    fontWeight: 700,
   },
   categoryFinding: {
     fontSize: 8,
     color: TEXT_MUTED,
-    lineHeight: 1.5,
+    lineHeight: 1.6,
+    marginTop: 2,
   },
   findingSection: {
     marginBottom: 12,
@@ -329,7 +350,7 @@ function getItemText(item) {
 
 function getItemDescription(item) {
   if (typeof item === 'object' && item !== null) {
-    return item.description || '';
+    return item.quote || '';
   }
   return '';
 }
@@ -366,7 +387,85 @@ function FindingsSection({ title, items, color, maxItems = 5 }) {
   );
 }
 
-function parsePolicyText(text) {
+function getItemQuote(item) {
+  if (typeof item === 'object' && item !== null) {
+    return item.quote || '';
+  }
+  return '';
+}
+
+function highlightFindings(text, findings) {
+  if (!findings || findings.length === 0) {
+    return [{ text, type: null }];
+  }
+
+  const lowerText = text.toLowerCase();
+  const matches = [];
+
+  for (const { items, type } of findings) {
+    for (const item of items) {
+      const quote = getItemQuote(item);
+      if (quote) {
+        const lowerQuote = quote.toLowerCase();
+        let idx = lowerText.indexOf(lowerQuote);
+        while (idx !== -1) {
+          matches.push({ start: idx, end: idx + lowerQuote.length, type });
+          idx = lowerText.indexOf(lowerQuote, idx + 1);
+        }
+      }
+    }
+  }
+
+  if (matches.length === 0) {
+    return [{ text, type: null }];
+  }
+
+  matches.sort((a, b) => a.start - b.start);
+  const merged = [matches[0]];
+  for (let i = 1; i < matches.length; i++) {
+    const last = merged[merged.length - 1];
+    if (matches[i].start <= last.end) {
+      last.end = Math.max(last.end, matches[i].end);
+      if (matches[i].type === 'red_flag') {
+        last.type = 'red_flag';
+      } else if (matches[i].type === 'warning' && last.type !== 'red_flag') {
+        last.type = 'warning';
+      }
+    } else {
+      merged.push({ ...matches[i] });
+    }
+  }
+
+  const segments = [];
+  let pos = 0;
+  for (const m of merged) {
+    if (m.start > pos) {
+      segments.push({ text: text.slice(pos, m.start), type: null });
+    }
+    segments.push({ text: text.slice(m.start, m.end), type: m.type });
+    pos = m.end;
+  }
+  if (pos < text.length) {
+    segments.push({ text: text.slice(pos), type: null });
+  }
+
+  return segments;
+}
+
+function highlightBgColor(type) {
+  if (type === 'red_flag') {
+    return 'rgba(239, 68, 68, 0.25)';
+  }
+  if (type === 'warning') {
+    return 'rgba(234, 179, 8, 0.25)';
+  }
+  if (type === 'positive') {
+    return 'rgba(34, 197, 94, 0.25)';
+  }
+  return 'transparent';
+}
+
+function parsePolicyText(text, findings) {
   if (!text) {
     return [];
   }
@@ -378,7 +477,7 @@ function parsePolicyText(text) {
     if (paragraphLines.length > 0) {
       const joined = paragraphLines.join(' ').trim();
       if (joined) {
-        elements.push({ type: 'paragraph', text: joined });
+        elements.push({ type: 'paragraph', segments: highlightFindings(joined, findings) });
       }
       paragraphLines = [];
     }
@@ -394,7 +493,7 @@ function parsePolicyText(text) {
       elements.push({ type: 'heading', text: line.slice(3).trim() });
     } else if (line.startsWith('- ')) {
       flushParagraph();
-      elements.push({ type: 'list', text: line.slice(2).trim() });
+      elements.push({ type: 'list', segments: highlightFindings(line.slice(2).trim(), findings) });
     } else if (line.trim() === '') {
       flushParagraph();
     } else {
@@ -407,7 +506,12 @@ function parsePolicyText(text) {
 }
 
 function PolicyTextContent({ policyText, serviceName }) {
-  const elements = parsePolicyText(policyText?.content);
+  const findings = [
+    { items: policyText?.red_flags || [], type: 'red_flag' },
+    { items: policyText?.warnings || [], type: 'warning' },
+    { items: policyText?.positives || [], type: 'positive' },
+  ];
+  const elements = parsePolicyText(policyText?.content, findings);
 
   return (
     <>
@@ -432,13 +536,29 @@ function PolicyTextContent({ policyText, serviceName }) {
           return (
             <View key={i} style={styles.policyListItem}>
               <Text style={styles.policyBullet}>{'\u2022'}</Text>
-              <Text style={styles.policyListText}>{el.text}</Text>
+              <Text style={styles.policyListText}>
+                {el.segments.map((seg, j) => (
+                  <Text
+                    key={j}
+                    style={seg.type ? { backgroundColor: highlightBgColor(seg.type), color: '#e4e4e7' } : undefined}
+                  >
+                    {seg.text}
+                  </Text>
+                ))}
+              </Text>
             </View>
           );
         }
         return (
           <Text key={i} style={styles.policyParagraph}>
-            {el.text}
+            {el.segments.map((seg, j) => (
+              <Text
+                key={j}
+                style={seg.type ? { backgroundColor: highlightBgColor(seg.type), color: '#e4e4e7' } : undefined}
+              >
+                {seg.text}
+              </Text>
+            ))}
           </Text>
         );
       })}
@@ -512,35 +632,35 @@ export default function PolicyReport({ result, policyText }) {
         {result?.summary && <Text style={styles.summary}>{result.summary}</Text>}
 
         {/* Categories */}
-        {result?.categories?.length > 0 && (
+        {result?.categories && Object.keys(result.categories).length > 0 && (
           <>
             <Text style={styles.sectionTitle}>CATEGORIES</Text>
             <View style={styles.categoryGrid}>
-              {result.categories.map((cat, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.categoryCard,
-                    { borderLeftColor: getGradeColor(cat.grade) },
-                  ]}
-                  wrap={false}
-                >
-                  <Text style={styles.categoryName}>{cat.name}</Text>
-                  <Text
-                    style={[
-                      styles.categoryGrade,
-                      { color: getGradeColor(cat.grade) },
-                    ]}
-                  >
-                    {cat.grade}
-                  </Text>
-                  {cat.finding && (
-                    <Text style={styles.categoryFinding}>
-                      {truncateText(cat.finding)}
-                    </Text>
-                  )}
-                </View>
-              ))}
+              {Object.entries(result.categories).map(([key, cat]) => {
+                const gradeColor = getGradeColor(cat.grade);
+                return (
+                  <View key={key} style={styles.categoryCard} wrap={false}>
+                    <View style={[styles.categoryAccentBar, { backgroundColor: gradeColor }]} />
+                    <View style={styles.categoryCardBody}>
+                      <View style={styles.categoryHeader}>
+                        <Text style={styles.categoryName}>
+                          {key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </Text>
+                        <View style={[styles.categoryGradeBadge, { backgroundColor: `${gradeColor}22` }]}>
+                          <Text style={[styles.categoryGrade, { color: gradeColor }]}>
+                            {cat.grade}
+                          </Text>
+                        </View>
+                      </View>
+                      {cat.finding && (
+                        <Text style={styles.categoryFinding}>
+                          {truncateText(cat.finding)}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           </>
         )}

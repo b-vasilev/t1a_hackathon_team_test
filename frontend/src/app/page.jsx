@@ -41,6 +41,20 @@ export default function Home() {
   const sudokuWindowRef = useRef(null);
   const resultsRef = useRef(null);
 
+  const openSudokuPopup = useCallback(() => {
+    if (!sudokuWindowRef.current || sudokuWindowRef.current.closed) {
+      const w = 520, h = 740;
+      const left = Math.round(window.screenX + (window.outerWidth - w) / 2);
+      const top = Math.round(window.screenY + (window.outerHeight - h) / 2);
+      const popup = window.open('/sudoku', 'policylens-sudoku', `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`);
+      if (popup) {
+        sudokuWindowRef.current = popup;
+      }
+    } else {
+      sudokuWindowRef.current.focus();
+    }
+  }, []);
+
   // Auto-dismiss scan complete toast after 8s
   useEffect(() => {
     if (!scanComplete) { return; }
@@ -114,21 +128,7 @@ export default function Home() {
   const handleAnalyze = async () => {
     setIsLoading(true);
     setError('');
-    if (!sudokuWindowRef.current || sudokuWindowRef.current.closed) {
-      const w = 520, h = 740;
-      const left = Math.round(window.screenX + (window.outerWidth - w) / 2);
-      const top = Math.round(window.screenY + (window.outerHeight - h) / 2);
-      const popup = window.open(
-        '/sudoku',
-        'policylens-sudoku',
-        `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`
-      );
-      if (popup) {
-        sudokuWindowRef.current = popup;
-      }
-    } else {
-      sudokuWindowRef.current.focus();
-    }
+    openSudokuPopup();
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
@@ -136,8 +136,12 @@ export default function Home() {
         body: JSON.stringify({ service_ids: [...selectedIds] }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Analysis failed');
+        let detail = `Analysis failed (HTTP ${res.status})`;
+        try {
+          const err = await res.json();
+          if (err.detail) { detail = err.detail; }
+        } catch {}
+        throw new Error(detail);
       }
       const data = await res.json();
       setResults(data.results);
@@ -190,7 +194,7 @@ export default function Home() {
   return (
     <main className="max-w-5xl mx-auto px-4 py-10 flex flex-col gap-12">
       {/* Hero */}
-      <header className="hero-section scan-line relative py-12 md:py-16 flex flex-col gap-4 text-center items-center">
+      <header className="hero-section scan-line relative py-12 md:py-20 flex flex-col gap-5 text-center items-center">
         <Image
           src="/policy-icon.svg"
           alt="PolicyLens icon"
@@ -235,141 +239,237 @@ export default function Home() {
         >
           AI-powered privacy policy analysis that grades the services you use every day.
         </p>
-        <div className="flex justify-center items-center gap-0 mt-4">
-          {/* Step 1 */}
-          <div
-            style={{
-              border: '1px solid var(--pl-border)',
-              background: 'var(--pl-surface)',
-              fontFamily: 'var(--font-mono)',
-              animation: 'fadeInUp 0.5s ease forwards',
-              animationDelay: '0.1s',
-              opacity: 0,
-              padding: '6px 14px',
-              borderRadius: '9999px',
-              fontSize: '0.8rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
+        {/* Secondary value prop */}
+        <p
+          className="max-w-lg relative z-1"
+          style={{
+            color: 'var(--pl-text-dim)',
+            fontSize: '0.9rem',
+            lineHeight: 1.5,
+            fontFamily: 'var(--font-mono)',
+            animation: 'fadeInUp 0.6s ease forwards',
+            animationDelay: '0.35s',
+            opacity: 0,
+          }}
+        >
+          The average privacy policy is 4,000 words. We read them so you don&apos;t have to.
+        </p>
+        {/* Trust chips */}
+        <div
+          className="relative z-1"
+          style={{
+            display: 'flex',
+            gap: '12px',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            animation: 'fadeInUp 0.6s ease forwards',
+            animationDelay: '0.45s',
+            opacity: 0,
+          }}
+        >
+          {[
+            { icon: '◈', label: 'No account needed' },
+            { icon: '◇', label: 'Free' },
+            { icon: '⬡', label: 'AI-powered' },
+          ].map((chip) => (
             <span
+              key={chip.label}
               style={{
-                background: 'var(--pl-accent-muted)',
-                color: 'var(--pl-accent)',
-                width: '20px',
-                height: '20px',
-                borderRadius: '50%',
                 display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.7rem',
-                fontWeight: 700,
+                gap: '6px',
+                padding: '4px 12px',
+                borderRadius: '9999px',
+                background: 'rgba(0, 229, 255, 0.06)',
+                border: '1px solid rgba(0, 229, 255, 0.15)',
+                fontSize: '0.72rem',
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--pl-text-muted)',
+                letterSpacing: '0.02em',
               }}
             >
-              1
+              <span style={{ color: 'var(--pl-accent)', fontSize: '0.65rem' }}>{chip.icon}</span>
+              {chip.label}
             </span>
-            Select services
-          </div>
-          {/* Connecting line */}
-          <div
-            style={{
-              width: '48px',
-              height: '1px',
-              background: 'var(--pl-border)',
-              animation: 'lineGrow 0.4s ease forwards',
-              animationDelay: '0.3s',
-              transformOrigin: 'left',
-              transform: 'scaleX(0)',
-            }}
-          />
-          {/* Step 2 */}
-          <div
-            style={{
-              border: '1px solid var(--pl-border)',
-              background: 'var(--pl-surface)',
-              fontFamily: 'var(--font-mono)',
-              animation: 'fadeInUp 0.5s ease forwards',
-              animationDelay: '0.3s',
-              opacity: 0,
-              padding: '6px 14px',
-              borderRadius: '9999px',
-              fontSize: '0.8rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <span
-              style={{
-                background: 'var(--pl-accent-muted)',
-                color: 'var(--pl-accent)',
-                width: '20px',
-                height: '20px',
-                borderRadius: '50%',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.7rem',
-                fontWeight: 700,
-              }}
-            >
-              2
-            </span>
-            Scan policies
-          </div>
-          {/* Connecting line */}
-          <div
-            style={{
-              width: '48px',
-              height: '1px',
-              background: 'var(--pl-border)',
-              animation: 'lineGrow 0.4s ease forwards',
-              animationDelay: '0.5s',
-              transformOrigin: 'left',
-              transform: 'scaleX(0)',
-            }}
-          />
-          {/* Step 3 */}
-          <div
-            style={{
-              border: '1px solid var(--pl-border)',
-              background: 'var(--pl-surface)',
-              fontFamily: 'var(--font-mono)',
-              animation: 'fadeInUp 0.5s ease forwards',
-              animationDelay: '0.5s',
-              opacity: 0,
-              padding: '6px 14px',
-              borderRadius: '9999px',
-              fontSize: '0.8rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <span
-              style={{
-                background: 'var(--pl-accent-muted)',
-                color: 'var(--pl-accent)',
-                width: '20px',
-                height: '20px',
-                borderRadius: '50%',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.7rem',
-                fontWeight: 700,
-              }}
-            >
-              3
-            </span>
-            Understand risk
-          </div>
+          ))}
         </div>
+
+        {/* How it works — 3-column grid */}
+        <div
+          className="hero-steps-grid relative z-1"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '16px',
+            marginTop: '24px',
+            width: '100%',
+            maxWidth: '640px',
+          }}
+        >
+          {[
+            {
+              num: '1',
+              icon: (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+              ),
+              title: 'Select services',
+              desc: 'Pick from popular apps or paste any URL',
+              delay: '0.5s',
+            },
+            {
+              num: '2',
+              icon: (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                </svg>
+              ),
+              title: 'Scan policies',
+              desc: 'AI reads and grades each policy A+ to F',
+              delay: '0.65s',
+            },
+            {
+              num: '3',
+              icon: (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <path d="M9 12l2 2 4-4" />
+                </svg>
+              ),
+              title: 'Understand risk',
+              desc: 'Get a plain-English risk profile',
+              delay: '0.8s',
+            },
+          ].map((step) => (
+            <div
+              key={step.num}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '20px 12px',
+                borderRadius: '14px',
+                border: '1px solid var(--pl-border)',
+                background: 'var(--pl-surface)',
+                animation: 'fadeInUp 0.5s ease forwards',
+                animationDelay: step.delay,
+                opacity: 0,
+              }}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  background: 'rgba(0, 229, 255, 0.08)',
+                  border: '1px solid rgba(0, 229, 255, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--pl-accent)',
+                }}
+              >
+                {step.icon}
+              </div>
+              <span
+                style={{
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  color: 'var(--pl-text)',
+                  fontFamily: 'var(--font-heading)',
+                }}
+              >
+                {step.title}
+              </span>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  color: 'var(--pl-text-dim)',
+                  lineHeight: 1.4,
+                  textAlign: 'center',
+                }}
+              >
+                {step.desc}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Scroll-down chevron */}
+        <button
+          onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })}
+          aria-label="Scroll to services"
+          style={{
+            marginTop: '20px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            animation: 'chevronBounce 2s ease-in-out infinite',
+            color: 'var(--pl-text-dim)',
+            padding: '8px',
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
       </header>
 
+      {/* Why it matters — stat banner */}
+      <section
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '14px',
+          padding: '16px 24px',
+          borderRadius: '14px',
+          border: '1px solid var(--pl-border)',
+          background: 'linear-gradient(135deg, var(--pl-surface) 0%, rgba(0, 229, 255, 0.03) 100%)',
+        }}
+      >
+        <span
+          style={{
+            fontSize: '2rem',
+            fontWeight: 700,
+            fontFamily: 'var(--font-heading)',
+            color: 'var(--pl-accent)',
+            lineHeight: 1,
+          }}
+        >
+          91%
+        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span
+            style={{
+              fontSize: '0.88rem',
+              color: 'var(--pl-text)',
+              fontWeight: 500,
+            }}
+          >
+            of users accept privacy policies without reading them
+          </span>
+          <span
+            style={{
+              fontSize: '0.68rem',
+              color: 'var(--pl-text-dim)',
+              fontFamily: 'var(--font-mono)',
+            }}
+          >
+            Source: Deloitte, 2017
+          </span>
+        </div>
+      </section>
+
       {/* Service selection */}
-      <section className="flex flex-col gap-4">
+      <section id="services" className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
           Popular Services
         </h2>
@@ -460,19 +560,7 @@ export default function Home() {
         <p style={{ color: 'var(--pl-text-muted)', fontSize: '0.75rem', textAlign: 'center', maxWidth: '360px' }}>
           Not ready to face the truth? That&apos;s fair — you can always just{' '}
           <button
-            onClick={() => {
-              if (!sudokuWindowRef.current || sudokuWindowRef.current.closed) {
-                const w = 520, h = 740;
-                const left = Math.round(window.screenX + (window.outerWidth - w) / 2);
-                const top = Math.round(window.screenY + (window.outerHeight - h) / 2);
-                const popup = window.open('/sudoku', 'policylens-sudoku', `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`);
-                if (popup) {
-                  sudokuWindowRef.current = popup;
-                }
-              } else {
-                sudokuWindowRef.current.focus();
-              }
-            }}
+            onClick={openSudokuPopup}
             style={{ color: 'var(--pl-accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}
           >
             play Sudoku
