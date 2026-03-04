@@ -42,18 +42,30 @@ Analyze this privacy policy and return a JSON object with this exact schema:
     "user_rights": {{"grade": "A-", "finding": "Easy opt-out and data export available"}}
   }},
   "highlights": ["plain English point 1", "point 2", "point 3"],
-  "red_flags": ["concern 1", "concern 2"],
-  "warnings": ["warning 1"],
-  "positives": ["good practice 1"]
+  "red_flags": [
+    {{
+      "text": "Sells personal data to third-party advertisers",
+      "quote": "We may sell your personal information"
+    }}
+  ],
+  "warnings": [
+    {{"text": "Retains data for up to 5 years", "quote": "we retain your data for a period of five years"}}
+  ],
+  "positives": [
+    {{"text": "Users can request full data deletion", "quote": "You may request deletion of all personal data"}}
+  ]
 }}
 
 Rules:
 - Each category grade must be a letter from A+ to F.
 - Each finding must be max 80 characters.
 - highlights: up to 5 plain-English summary points (max 100 chars each).
-- red_flags: up to 3 serious privacy concerns (max 80 chars each).
-- warnings: up to 3 moderate concerns (max 80 chars each).
-- positives: up to 3 good privacy practices (max 80 chars each).
+- red_flags: up to 3 serious privacy concerns as objects.
+- warnings: up to 3 moderate concerns as objects.
+- positives: up to 3 good privacy practices as objects.
+- Each object MUST have "text" (plain English summary, max 80 chars) \
+and "quote" (exact verbatim excerpt from the policy text).
+- The "quote" MUST be a word-for-word excerpt from the policy. Do NOT paraphrase or modify the quote.
 - Return ONLY valid JSON.
 
 Privacy policy text:

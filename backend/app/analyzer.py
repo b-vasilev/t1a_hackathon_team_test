@@ -575,6 +575,19 @@ def _empty_result(summary: str) -> dict:
     }
 
 
+def _normalize_finding(item) -> dict:
+    """Normalize a finding to {text, quote} format. Handles both old strings and new objects."""
+    if isinstance(item, dict):
+        return {"text": str(item.get("text", "")), "quote": str(item.get("quote", ""))}
+    return {"text": str(item), "quote": ""}
+
+
+def _normalize_findings(items) -> list[dict]:
+    if not isinstance(items, list):
+        return []
+    return [_normalize_finding(i) for i in items]
+
+
 def _normalize(data: dict) -> dict:
     # Ensure categories dict has all 5 keys
     categories = data.get("categories", {})
@@ -594,15 +607,10 @@ def _normalize(data: dict) -> dict:
     highlights = data.get("highlights", [])
     if not isinstance(highlights, list):
         highlights = []
-    red_flags = data.get("red_flags", [])
-    if not isinstance(red_flags, list):
-        red_flags = []
-    warnings = data.get("warnings", [])
-    if not isinstance(warnings, list):
-        warnings = []
-    positives = data.get("positives", [])
-    if not isinstance(positives, list):
-        positives = []
+
+    red_flags = _normalize_findings(data.get("red_flags", []))
+    warnings = _normalize_findings(data.get("warnings", []))
+    positives = _normalize_findings(data.get("positives", []))
 
     return {
         "grade": overall_grade,

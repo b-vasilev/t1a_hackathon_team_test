@@ -3,6 +3,20 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 
+function getItemText(item) {
+  if (typeof item === 'object' && item !== null) {
+    return item.text || '';
+  }
+  return String(item);
+}
+
+function getItemQuote(item) {
+  if (typeof item === 'object' && item !== null) {
+    return item.quote || '';
+  }
+  return '';
+}
+
 function highlightFindings(text, findings) {
   if (!findings || findings.length === 0) {
     return [{ text, type: null }];
@@ -13,14 +27,27 @@ function highlightFindings(text, findings) {
 
   for (const { items, type } of findings) {
     for (const item of items) {
-      const words = item.split(/\s+/).filter(w => w.length > 3);
-      for (let len = Math.min(words.length, 5); len >= 2; len--) {
-        for (let start = 0; start <= words.length - len; start++) {
-          const phrase = words.slice(start, start + len).join(' ').toLowerCase();
-          let idx = lowerText.indexOf(phrase);
-          while (idx !== -1) {
-            matches.push({ start: idx, end: idx + phrase.length, type });
-            idx = lowerText.indexOf(phrase, idx + 1);
+      const quote = getItemQuote(item);
+      if (quote) {
+        // Exact quote matching
+        const lowerQuote = quote.toLowerCase();
+        let idx = lowerText.indexOf(lowerQuote);
+        while (idx !== -1) {
+          matches.push({ start: idx, end: idx + lowerQuote.length, type });
+          idx = lowerText.indexOf(lowerQuote, idx + 1);
+        }
+      } else {
+        // Fuzzy fallback for old-format findings (plain strings)
+        const itemText = getItemText(item);
+        const words = itemText.split(/\s+/).filter(w => w.length > 3);
+        for (let len = Math.min(words.length, 5); len >= 2; len--) {
+          for (let start = 0; start <= words.length - len; start++) {
+            const phrase = words.slice(start, start + len).join(' ').toLowerCase();
+            let idx = lowerText.indexOf(phrase);
+            while (idx !== -1) {
+              matches.push({ start: idx, end: idx + phrase.length, type });
+              idx = lowerText.indexOf(phrase, idx + 1);
+            }
           }
         }
       }
@@ -90,6 +117,8 @@ export default function PolicyViewer({ serviceId, serviceName, grade, onClose })
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeSection, setActiveSection] = useState(null);
+  const [activeType, setActiveType] = useState(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const contentRef = useRef(null);
   const sectionRefs = useRef({});
 
@@ -147,6 +176,70 @@ export default function PolicyViewer({ serviceId, serviceName, grade, onClose })
       setActiveSection(heading);
     }
   }, []);
+
+  const getHighlights = useCallback((type) => {
+    if (!contentRef.current) {
+      return [];
+    }
+    const className = highlightClass(type);
+    return Array.from(contentRef.current.querySelectorAll(`mark.${className}`));
+  }, []);
+
+  const jumpToHighlight = useCallback((type, index) => {
+    const marks = getHighlights(type);
+    if (marks.length === 0) {
+      return;
+    }
+    const prev = contentRef.current?.querySelector('mark.highlight-active');
+    if (prev) {
+      prev.classList.remove('highlight-active');
+    }
+    const idx = ((index % marks.length) + marks.length) % marks.length;
+    const el = marks[idx];
+    el.classList.add('highlight-active');
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setActiveType(type);
+    setActiveIndex(idx);
+  }, [getHighlights]);
+
+  const handleTypeClick = useCallback((type) => {
+    if (activeType === type) {
+      jumpToHighlight(type, activeIndex + 1);
+    } else {
+      jumpToHighlight(type, 0);
+    }
+  }, [activeType, activeIndex, jumpToHighlight]);
+
+  const handlePrev = useCallback(() => {
+    if (!activeType) {
+      return;
+    }
+    jumpToHighlight(activeType, activeIndex - 1);
+  }, [activeType, activeIndex, jumpToHighlight]);
+
+  const handleNext = useCallback(() => {
+    if (!activeType) {
+      return;
+    }
+    jumpToHighlight(activeType, activeIndex + 1);
+  }, [activeType, activeIndex, jumpToHighlight]);
+
+  useEffect(() => {
+    function handleKey(e) {
+      if (!activeType) {
+        return;
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        jumpToHighlight(activeType, activeIndex + 1);
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        jumpToHighlight(activeType, activeIndex - 1);
+      }
+    }
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [activeType, activeIndex, jumpToHighlight]);
 
   const findings = useMemo(() => {
     if (!data) {
@@ -285,24 +378,57 @@ export default function PolicyViewer({ serviceId, serviceName, grade, onClose })
         )}
 
         {data && (
-          <div className="flex gap-4 px-5 py-2 text-xs" style={{ borderBottom: '1px solid var(--pl-border)' }}>
-            {data.red_flags?.length > 0 && (
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm inline-block highlight-red" />
-                <span style={{ color: 'var(--pl-text-muted)' }}>Red flags</span>
-              </span>
-            )}
-            {data.warnings?.length > 0 && (
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm inline-block highlight-yellow" />
-                <span style={{ color: 'var(--pl-text-muted)' }}>Warnings</span>
-              </span>
-            )}
-            {data.positives?.length > 0 && (
-              <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm inline-block highlight-green" />
-                <span style={{ color: 'var(--pl-text-muted)' }}>Positives</span>
-              </span>
+          <div className="flex items-center gap-1 px-5 py-2 text-xs flex-wrap" style={{ borderBottom: '1px solid var(--pl-border)' }}>
+            {[
+              { type: 'red_flag', items: data.red_flags, label: 'Red flags', cls: 'highlight-red' },
+              { type: 'warning', items: data.warnings, label: 'Warnings', cls: 'highlight-yellow' },
+              { type: 'positive', items: data.positives, label: 'Positives', cls: 'highlight-green' },
+            ].filter(f => f.items?.length > 0).map(({ type, items, label, cls }) => (
+              <button
+                key={type}
+                onClick={() => handleTypeClick(type)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all cursor-pointer"
+                style={{
+                  color: activeType === type ? 'var(--pl-text)' : 'var(--pl-text-muted)',
+                  background: activeType === type ? 'rgba(255,255,255,0.08)' : 'transparent',
+                  border: activeType === type ? '1px solid var(--pl-border)' : '1px solid transparent',
+                }}
+                title={`Jump through ${label.toLowerCase()}`}
+              >
+                <span className={`w-3 h-3 rounded-sm inline-block ${cls}`} />
+                <span>{label}</span>
+                <span style={{ color: 'var(--pl-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  ({items.length})
+                </span>
+              </button>
+            ))}
+
+            {activeType && (
+              <div className="flex items-center gap-1 ml-2 pl-2" style={{ borderLeft: '1px solid var(--pl-border)' }}>
+                <span className="text-xs tabular-nums" style={{ color: 'var(--pl-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  {activeIndex + 1}/{getHighlights(activeType).length}
+                </span>
+                <button
+                  onClick={handlePrev}
+                  className="p-0.5 rounded hover:bg-white/10 transition-colors"
+                  style={{ color: 'var(--pl-text-muted)' }}
+                  aria-label="Previous finding"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="18 15 12 9 6 15" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleNext}
+                  className="p-0.5 rounded hover:bg-white/10 transition-colors"
+                  style={{ color: 'var(--pl-text-muted)' }}
+                  aria-label="Next finding"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              </div>
             )}
           </div>
         )}

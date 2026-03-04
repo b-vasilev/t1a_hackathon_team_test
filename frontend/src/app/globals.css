@@ -641,6 +641,17 @@ body::before {
   color: inherit;
 }
 
+.highlight-active {
+  outline: 2px solid var(--pl-accent);
+  outline-offset: 1px;
+  animation: highlight-pulse 1s ease-in-out 2;
+}
+
+@keyframes highlight-pulse {
+  0%, 100% { outline-color: var(--pl-accent); }
+  50% { outline-color: transparent; }
+}
+
 /* Hide nav on mobile */
 @media (max-width: 640px) {
   .policy-viewer-nav {

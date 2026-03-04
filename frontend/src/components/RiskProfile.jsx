@@ -231,7 +231,7 @@ function ServiceCard({ result, onRescan, isLoading }) {
                   <ul className="space-y-1">
                     {result.red_flags.map((f, i) => (
                       <li key={i} className="flex gap-2" style={{ color: 'var(--pl-text-muted)' }}>
-                        <span style={{ color: 'var(--pl-grade-f)' }} className="shrink-0">&#x25CF;</span>{f}
+                        <span style={{ color: 'var(--pl-grade-f)' }} className="shrink-0">&#x25CF;</span>{typeof f === 'object' ? f.text : f}
                       </li>
                     ))}
                   </ul>
@@ -243,7 +243,7 @@ function ServiceCard({ result, onRescan, isLoading }) {
                   <ul className="space-y-1">
                     {result.warnings.map((w, i) => (
                       <li key={i} className="flex gap-2" style={{ color: 'var(--pl-text-muted)' }}>
-                        <span style={{ color: 'var(--pl-grade-c)' }} className="shrink-0">&#x25CF;</span>{w}
+                        <span style={{ color: 'var(--pl-grade-c)' }} className="shrink-0">&#x25CF;</span>{typeof w === 'object' ? w.text : w}
                       </li>
                     ))}
                   </ul>
@@ -255,7 +255,7 @@ function ServiceCard({ result, onRescan, isLoading }) {
                   <ul className="space-y-1">
                     {result.positives.map((c, i) => (
                       <li key={i} className="flex gap-2" style={{ color: 'var(--pl-text-muted)' }}>
-                        <span style={{ color: 'var(--pl-grade-a)' }} className="shrink-0">&#x25CF;</span>{c}
+                        <span style={{ color: 'var(--pl-grade-a)' }} className="shrink-0">&#x25CF;</span>{typeof c === 'object' ? c.text : c}
                       </li>
                     ))}
                   </ul>
