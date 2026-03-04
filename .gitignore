@@ -1,1 +1,6 @@
 .env
+.devcontainer
+.claude
+.DS_Store
+node_modules/
+CLAUDE.md

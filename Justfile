@@ -1,0 +1,38 @@
+# PolicyLens — run `just` to see commands
+
+default:
+    @just --list
+
+# Build and start all containers
+up:
+    docker compose up --build
+
+# Stop containers
+stop:
+    docker compose down
+
+# Stop and wipe SQLite cache
+reset:
+    docker compose down -v
+
+# Install all deps locally
+install:
+    cd backend && pip install -e ".[dev]"
+    cd frontend && npm install
+
+# Lint all
+lint:
+    cd backend && python -m ruff check app/
+    cd frontend && npm run lint
+
+# Format all
+fmt:
+    cd backend && python -m ruff format app/
+
+# Run tests
+test:
+    cd backend && python -m pytest app/ -v
+
+# Full CI: lint + test + build
+ci: lint test
+    cd frontend && npm run build
