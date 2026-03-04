@@ -2,12 +2,20 @@ import json
 import logging
 import os
 import re
+from urllib.parse import parse_qs, urlparse
 
 import litellm
 from bs4 import BeautifulSoup
 from curl_cffi.requests import AsyncSession
 
-from .prompts import ANALYSIS_USER_PROMPT, FIND_URL_SYSTEM, FIND_URL_USER, GRADING_RUBRIC
+from .prompts import (
+    ACTIONS_SYSTEM,
+    ACTIONS_USER_PROMPT,
+    ANALYSIS_USER_PROMPT,
+    FIND_URL_SYSTEM,
+    FIND_URL_USER,
+    GRADING_RUBRIC,
+)
 
 LLM_MODEL = os.getenv("LLM_MODEL", "anthropic/claude-haiku-4-5-20251001")
 LLM_API_KEY = os.getenv("LLM_API_KEY")
@@ -63,7 +71,38 @@ def _has_useful_content(html: str, min_length: int = 500) -> bool:
     return len(text) >= min_length
 
 
-async def fetch_text(url: str, max_chars: int = 50000) -> str:
+async def _search_web(query: str) -> str:
+    """Search via DuckDuckGo HTML and return extracted result text."""
+    url = "https://html.duckduckgo.com/html/"
+    logger.info("Web search: %s", query)
+    try:
+        async with AsyncSession(impersonate="chrome", timeout=15) as session:
+            resp = await session.post(url, data={"q": query})
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
+            results = []
+            for r in soup.select(".result"):
+                title_el = r.select_one(".result__a")
+                snippet_el = r.select_one(".result__snippet")
+                title = title_el.get_text(strip=True) if title_el else ""
+                raw_href = title_el.get("href", "") if title_el else ""
+                # DuckDuckGo wraps links in redirects: //duckduckgo.com/l/?uddg=<encoded_url>
+                if "uddg=" in raw_href:
+                    href = parse_qs(urlparse(raw_href).query).get("uddg", [raw_href])[0]
+                else:
+                    href = raw_href
+                snippet = snippet_el.get_text(strip=True) if snippet_el else ""
+                if title:
+                    results.append(f"{title}\n{href}\n{snippet}")
+            text = "\n\n".join(results[:15])
+            logger.info("Web search returned %d results (%d chars)", len(results), len(text))
+            return text
+    except Exception as e:
+        logger.warning("Web search failed: %s: %s", type(e).__name__, e)
+        return ""
+
+
+async def fetch_text(url: str, max_chars: int = 80000) -> str:
     logger.info("=== fetch_text START for %s ===", url)
     headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -243,15 +282,15 @@ async def find_privacy_policy_url(website_url: str) -> str | None:
 async def analyze_policy(privacy_policy_url: str) -> dict:
     logger.info("Analyzing policy: %s", privacy_policy_url)
     try:
-        policy_text = await fetch_text(privacy_policy_url, max_chars=50000)
+        policy_text = await fetch_text(privacy_policy_url, max_chars=80000)
     except Exception as e:
         logger.error("Failed to fetch policy %s: %s", privacy_policy_url, e)
         return _empty_result(f"Could not fetch privacy policy: {e}")
 
     raw = await _llm_call(
         system=GRADING_RUBRIC,
-        user=ANALYSIS_USER_PROMPT.format(policy_text=policy_text[:15000]),
-        max_tokens=1500,
+        user=ANALYSIS_USER_PROMPT.format(policy_text=policy_text[:60000]),
+        max_tokens=2048,
     )
 
     # Strip markdown code fences if present
@@ -274,3 +313,64 @@ async def analyze_policy(privacy_policy_url: str) -> dict:
     result = _normalize(data)
     logger.info("Analysis complete for %s → grade=%s", privacy_policy_url, result["grade"])
     return result
+
+
+async def get_service_actions(service_name: str, website_url: str) -> list[dict]:
+    """Discover privacy action links (delete account, download data, etc.) for a service."""
+    logger.info("Discovering privacy actions for %s (%s)", service_name, website_url)
+    try:
+        query = f"{service_name} delete account download data privacy settings opt out GDPR request"
+        search_results = await _search_web(query)
+        if not search_results:
+            logger.info("No search results for %s, skipping actions", service_name)
+            return []
+
+        # Extract domain for prompt context
+        domain = urlparse(website_url).netloc or website_url
+
+        raw = await _llm_call(
+            system=ACTIONS_SYSTEM,
+            user=ACTIONS_USER_PROMPT.format(
+                service_name=service_name,
+                domain=domain,
+                search_results=search_results[:15000],
+            ),
+            max_tokens=1024,
+        )
+
+        # Strip markdown code fences if present
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", raw, re.DOTALL)
+            if match:
+                try:
+                    data = json.loads(match.group())
+                except json.JSONDecodeError:
+                    logger.warning("Could not parse actions JSON for %s", service_name)
+                    return []
+            else:
+                logger.warning("Could not parse actions JSON for %s", service_name)
+                return []
+        actions = data.get("actions", [])
+
+        # Validate each action has required fields and URL is on service domain
+        base_domain = domain.removeprefix("www.")
+        validated = []
+        for action in actions:
+            if not all(k in action for k in ("label", "url", "category")):
+                continue
+            action_host = urlparse(action["url"]).netloc.removeprefix("www.")
+            if not action_host.endswith(base_domain):
+                logger.info("Skipping action with off-domain URL: %s", action["url"])
+                continue
+            validated.append(action)
+
+        logger.info("Found %d privacy actions for %s", len(validated), service_name)
+        return validated
+    except Exception as e:
+        logger.warning("Failed to get actions for %s: %s: %s", service_name, type(e).__name__, e)
+        return []

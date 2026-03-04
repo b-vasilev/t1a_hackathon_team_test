@@ -71,3 +71,59 @@ Here is some text from the homepage:
 {homepage_text}
 
 Return ONLY the URL, nothing else. Return NOT_FOUND if no privacy policy URL is present."""
+
+ACTIONS_SYSTEM = """\
+You are a privacy actions extractor. Given web search results about a service's privacy options, \
+you extract actionable links that help users exercise their privacy rights. \
+These include account deletion pages, data download tools, privacy settings, opt-out forms, and similar resources.
+
+Rules:
+- The "url" field MUST always be a link on the service's own domain or subdomain \
+(e.g. for Google: google.com, myaccount.google.com). Never link to third-party sites.
+- If search results contain step-by-step instructions (e.g. from a blog or help article), \
+put those steps in "description" as a short instruction path \
+(e.g. "Go Settings → Privacy → Delete account") and set "url" to the service's own page. \
+Set "source" to the URL of the article where you found the instructions.
+- If no step-by-step instructions are found, set "source" to null and write a brief description of what the page does.
+- Categorize each action into exactly one of: deletion, data_access, privacy_settings, opt_out, legal_rights, other.
+- If no valid actions are found, return an empty actions array.
+- Return ONLY valid JSON, no markdown, no explanation."""
+
+ACTIONS_USER_PROMPT = """\
+Extract actionable privacy links for {service_name} ({domain}) from the search results below. \
+The "url" field must ALWAYS point to {domain} or a subdomain of {domain}. \
+Return a JSON object with this exact schema:
+
+{{
+  "actions": [
+    {{
+      "label": "Delete your account",
+      "description": "Go Settings → Account → Delete my account",
+      "url": "https://{domain}/settings/account",
+      "category": "deletion",
+      "source": "https://example-blog.com/how-to-delete-account"
+    }},
+    {{
+      "label": "Download your data",
+      "description": "Request a copy of all personal data the service holds.",
+      "url": "https://{domain}/privacy/download",
+      "category": "data_access",
+      "source": null
+    }}
+  ]
+}}
+
+Categories: deletion, data_access, privacy_settings, opt_out, legal_rights, other.
+
+Rules:
+- "url" MUST be on {domain} or a subdomain. Never use third-party URLs in the "url" field.
+- "source" is the URL of the article/guide where you found instructions. \
+Set to null if no guide found.
+- "description": if you found step-by-step instructions, summarize them as a path \
+(e.g. "Go Settings → Privacy → Delete account"). Otherwise describe what the page does.
+- Each label must be max 60 characters.
+- Each description must be max 150 characters.
+- Return ONLY valid JSON.
+
+Search results:
+{search_results}"""

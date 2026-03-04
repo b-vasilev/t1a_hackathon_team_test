@@ -93,9 +93,22 @@ function GradeBadge({ grade, size = 'md' }) {
   );
 }
 
-function ServiceCard({ result }) {
+function actionCategoryIcon(category) {
+  const icons = {
+    deletion: '\u{1F5D1}\uFE0F',
+    data_access: '\u{1F4E5}',
+    privacy_settings: '\u{1F6E1}\uFE0F',
+    opt_out: '\u{1F441}\uFE0F',
+    legal_rights: '\u2696\uFE0F',
+    other: '\u2139\uFE0F',
+  };
+  return icons[category] || '\u2139\uFE0F';
+}
+
+function ServiceCard({ result, onRescan, isLoading }) {
   const [expanded, setExpanded] = useState(false);
   const hasDetails =
+    result.actions?.length > 0 ||
     result.red_flags?.length > 0 ||
     result.warnings?.length > 0 ||
     result.positives?.length > 0;
@@ -124,6 +137,24 @@ function ServiceCard({ result }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold" style={{ color: 'var(--pl-text)' }}>{result.name}</span>
             <GradeBadge grade={result.grade} size="sm" />
+            {onRescan && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onRescan(result.service_id); }}
+                disabled={isLoading}
+                title="Rescan this service"
+                className="ml-auto shrink-0 p-1 rounded-md transition-colors cursor-pointer"
+                style={{
+                  color: 'var(--pl-text-muted)',
+                  opacity: isLoading ? 0.3 : 0.6,
+                }}
+                onMouseEnter={(e) => { if (!isLoading) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--pl-accent)'; } }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.color = 'var(--pl-text-muted)'; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                </svg>
+              </button>
+            )}
           </div>
           <p className="text-sm mt-1" style={{ color: 'var(--pl-text-muted)' }}>{result.summary}</p>
         </div>
@@ -145,6 +176,48 @@ function ServiceCard({ result }) {
 
           <div className={`details-collapse ${expanded ? 'open' : ''}`}>
             <div className="flex flex-col gap-3 text-sm pt-1">
+              {result.actions?.length > 0 && (
+                <div>
+                  <p className="font-medium mb-2" style={{ color: 'var(--pl-accent)' }}>What You Can Do</p>
+                  <div className="space-y-2">
+                    {result.actions.map((action, i) => (
+                      <div
+                        key={i}
+                        className="rounded-lg px-3 py-2"
+                        style={{
+                          background: 'rgba(0, 210, 255, 0.06)',
+                          border: '1px solid rgba(0, 210, 255, 0.15)',
+                        }}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="text-base shrink-0 mt-0.5">{actionCategoryIcon(action.category)}</span>
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={action.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-sm hover:underline"
+                              style={{ color: 'var(--pl-text)' }}
+                            >{action.label} <span style={{ color: 'var(--pl-accent)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>&rarr;</span></a>
+                            {action.description && (
+                              <p className="text-xs mt-0.5" style={{ color: 'var(--pl-text-muted)' }}>{action.description}</p>
+                            )}
+                            {action.source && (
+                              <a
+                                href={action.source}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs mt-1 inline-block hover:underline"
+                                style={{ color: 'var(--pl-accent)', opacity: 0.7 }}
+                              >source</a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {result.red_flags?.length > 0 && (
                 <div>
                   <p className="font-medium mb-1" style={{ color: 'var(--pl-grade-f)' }}>Red Flags</p>
@@ -189,7 +262,7 @@ function ServiceCard({ result }) {
   );
 }
 
-export default function RiskProfile({ overallGrade, results }) {
+export default function RiskProfile({ overallGrade, results, onRescanService, onClearCache, isLoading }) {
   if (!results || results.length === 0) { return null; }
 
   const totalRedFlags = results.reduce((n, r) => n + (r.red_flags?.length || 0), 0);
@@ -231,13 +304,31 @@ export default function RiskProfile({ overallGrade, results }) {
               <span style={{ color: 'var(--pl-text-muted)' }}>{totalClean} positive{totalClean !== 1 ? 's' : ''}</span>
             </span>
           </div>
+          {onClearCache && (
+            <button
+              onClick={onClearCache}
+              disabled={isLoading}
+              className="mt-3 text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--pl-text-muted)',
+                background: 'rgba(102, 102, 128, 0.08)',
+                border: '1px solid rgba(102, 102, 128, 0.2)',
+                opacity: isLoading ? 0.5 : 1,
+              }}
+              onMouseEnter={(e) => { if (!isLoading) { e.currentTarget.style.background = 'rgba(102, 102, 128, 0.15)'; } }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(102, 102, 128, 0.08)'; }}
+            >
+              Clear Cache
+            </button>
+          )}
         </div>
       </div>
 
       {/* Per-service cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 stagger-children">
         {results.map((r) => (
-          <ServiceCard key={r.service_id} result={r} />
+          <ServiceCard key={r.service_id} result={r} onRescan={onRescanService} isLoading={isLoading} />
         ))}
       </div>
     </div>
