@@ -4,8 +4,9 @@ services:
     expose:
       - "8000"
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
+      - LLM_MODEL=${LLM_MODEL:-anthropic/claude-haiku-4-5-20251001}
       - DATABASE_URL=sqlite:////data/policylens.db
     volumes:
       - sqlite_data:/data

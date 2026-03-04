@@ -31,7 +31,9 @@ class PolicyAnalysis(Base):
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     red_flags: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
     warnings: Mapped[str] = mapped_column(Text, nullable=False, default="[]")   # JSON
-    clean_items: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
+    categories: Mapped[str] = mapped_column(Text, default="{}")  # JSON
+    highlights: Mapped[str] = mapped_column(Text, default="[]")  # JSON
+    positives: Mapped[str] = mapped_column(Text, default="[]")  # JSON
     analyzed_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )

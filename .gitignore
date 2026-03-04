@@ -3,4 +3,10 @@
 .claude
 .DS_Store
 node_modules/
+.next/
+build/
+__pycache__/
+*.pyc
 CLAUDE.md
+*.egg-info
+/tmp

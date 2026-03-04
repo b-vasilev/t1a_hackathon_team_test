@@ -9,8 +9,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from anthropic import AuthenticationError as AnthropicAuthError, APIError as AnthropicAPIError
-
 from .database import engine, get_db, Base
 from .models import Service, PolicyAnalysis
 from .seed import seed_popular_services
@@ -178,7 +176,9 @@ async def analyze_services(
                 "summary": cached.summary,
                 "red_flags": json.loads(cached.red_flags),
                 "warnings": json.loads(cached.warnings),
-                "clean_items": json.loads(cached.clean_items),
+                "positives": json.loads(cached.positives),
+                "categories": json.loads(cached.categories),
+                "highlights": json.loads(cached.highlights),
                 "cached": True,
             }
 
@@ -198,28 +198,27 @@ async def analyze_services(
                 "summary": "Could not locate a privacy policy for this service.",
                 "red_flags": [],
                 "warnings": [],
-                "clean_items": [],
+                "positives": [],
+                "categories": {},
+                "highlights": [],
                 "cached": False,
             }
 
         try:
             analysis_data = await analyze_policy(svc.privacy_policy_url)
-        except AnthropicAuthError:
-            raise HTTPException(
-                status_code=500,
-                detail="Invalid Anthropic API key. Check your ANTHROPIC_API_KEY in .env.",
-            )
-        except AnthropicAPIError as e:
-            logger.error("Anthropic API error for %s: %s", svc.name, e)
+        except Exception as e:
+            logger.error("LLM API error for %s: %s", svc.name, e)
             return {
                 "service_id": svc.id,
                 "name": svc.name,
                 "icon": svc.icon,
                 "grade": "N/A",
-                "summary": f"Analysis failed: {e}",
+                "summary": f"LLM API error: {e}",
                 "red_flags": [],
                 "warnings": [],
-                "clean_items": [],
+                "positives": [],
+                "categories": {},
+                "highlights": [],
                 "cached": False,
             }
 
@@ -230,7 +229,9 @@ async def analyze_services(
             summary=analysis_data["summary"],
             red_flags=json.dumps(analysis_data["red_flags"]),
             warnings=json.dumps(analysis_data["warnings"]),
-            clean_items=json.dumps(analysis_data["clean_items"]),
+            positives=json.dumps(analysis_data.get("positives", [])),
+            categories=json.dumps(analysis_data.get("categories", {})),
+            highlights=json.dumps(analysis_data.get("highlights", [])),
         )
         db.add(analysis)
         await db.commit()
@@ -243,7 +244,9 @@ async def analyze_services(
             "summary": analysis_data["summary"],
             "red_flags": analysis_data["red_flags"],
             "warnings": analysis_data["warnings"],
-            "clean_items": analysis_data["clean_items"],
+            "positives": analysis_data.get("positives", []),
+            "categories": analysis_data.get("categories", {}),
+            "highlights": analysis_data.get("highlights", []),
             "cached": False,
         }
 

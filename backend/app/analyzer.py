@@ -2,12 +2,13 @@ import json
 import os
 import re
 import httpx
-from anthropic import AsyncAnthropic
+import litellm
 from bs4 import BeautifulSoup
+from .prompts import GRADING_RUBRIC, ANALYSIS_USER_PROMPT, FIND_URL_SYSTEM, FIND_URL_USER
 
-client = AsyncAnthropic(
-    base_url=os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
-)
+LLM_MODEL = os.getenv("LLM_MODEL", "anthropic/claude-haiku-4-5-20251001")
+LLM_API_KEY = os.getenv("LLM_API_KEY")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 
 HEADERS = {
     "User-Agent": (
@@ -54,25 +55,92 @@ async def fetch_text(url: str, max_chars: int = 50000) -> str:
         return text[:max_chars]
 
 
+CATEGORY_KEYS = ["data_collection", "data_sharing", "data_retention", "tracking", "user_rights"]
+
+
+async def _llm_call(system: str, user: str, max_tokens: int = 1024) -> str:
+    kwargs = dict(
+        model=LLM_MODEL,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        max_tokens=max_tokens,
+        temperature=0,
+    )
+    if LLM_API_KEY:
+        kwargs["api_key"] = LLM_API_KEY
+    if LLM_BASE_URL:
+        kwargs["api_base"] = LLM_BASE_URL
+    response = await litellm.acompletion(**kwargs)
+    return response.choices[0].message.content.strip()
+
+
+def _empty_result(summary: str) -> dict:
+    return {
+        "grade": "N/A",
+        "summary": summary,
+        "red_flags": [],
+        "warnings": [],
+        "positives": [],
+        "categories": {},
+        "highlights": [],
+    }
+
+
+def _normalize(data: dict) -> dict:
+    # Ensure categories dict has all 5 keys
+    categories = data.get("categories", {})
+    for key in CATEGORY_KEYS:
+        if key not in categories or not isinstance(categories[key], dict):
+            categories[key] = {"grade": "N/A", "finding": "Not assessed"}
+        else:
+            categories[key].setdefault("grade", "N/A")
+            categories[key].setdefault("finding", "Not assessed")
+    data["categories"] = categories
+
+    # Compute overall grade as average of category grades
+    category_grades = [categories[k]["grade"] for k in CATEGORY_KEYS]
+    overall_grade = average_grade(category_grades)
+
+    # Ensure list fields
+    highlights = data.get("highlights", [])
+    if not isinstance(highlights, list):
+        highlights = []
+    red_flags = data.get("red_flags", [])
+    if not isinstance(red_flags, list):
+        red_flags = []
+    warnings = data.get("warnings", [])
+    if not isinstance(warnings, list):
+        warnings = []
+    positives = data.get("positives", [])
+    if not isinstance(positives, list):
+        positives = []
+
+    return {
+        "grade": overall_grade,
+        "summary": highlights[0] if highlights else "Analysis complete.",
+        "red_flags": red_flags[:3],
+        "warnings": warnings[:3],
+        "positives": positives[:3],
+        "categories": categories,
+        "highlights": highlights[:5],
+    }
+
+
 async def find_privacy_policy_url(website_url: str) -> str | None:
     try:
         homepage_text = await fetch_text(website_url, max_chars=5000)
     except Exception:
         return None
 
-    prompt = (
-        f"Return ONLY the full URL of the privacy policy for {website_url}. "
-        f"Here is some text from the homepage:\n\n{homepage_text}\n\n"
-        "Return ONLY the URL, nothing else. Return NOT_FOUND if no privacy policy URL is present."
+    raw = await _llm_call(
+        system=FIND_URL_SYSTEM,
+        user=FIND_URL_USER.format(website_url=website_url, homepage_text=homepage_text),
+        max_tokens=200,
     )
 
-    message = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=256,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    result = message.content[0].text.strip()
+    result = raw.strip()
     if result == "NOT_FOUND" or not result.startswith("http"):
         return None
     return result
@@ -82,34 +150,13 @@ async def analyze_policy(privacy_policy_url: str) -> dict:
     try:
         policy_text = await fetch_text(privacy_policy_url, max_chars=50000)
     except Exception as e:
-        return {
-            "grade": "N/A",
-            "summary": f"Could not fetch privacy policy: {e}",
-            "red_flags": [],
-            "warnings": [],
-            "clean_items": [],
-        }
+        return _empty_result(f"Could not fetch privacy policy: {e}")
 
-    prompt = f"""Analyze this privacy policy and return a JSON object with these exact fields:
-- "grade": letter grade A+ through F based on privacy friendliness
-- "summary": one sentence (max 120 chars) describing the overall privacy stance
-- "red_flags": array of up to 3 serious privacy concerns (max 60 chars each)
-- "warnings": array of up to 3 moderate concerns (max 60 chars each)
-- "clean_items": array of up to 3 positive privacy practices (max 60 chars each)
-
-Grade scale: A+ = excellent privacy, F = terrible privacy.
-Return ONLY valid JSON, no markdown, no explanation.
-
-Privacy policy text:
-{policy_text}"""
-
-    message = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
+    raw = await _llm_call(
+        system=GRADING_RUBRIC,
+        user=ANALYSIS_USER_PROMPT.format(policy_text=policy_text[:15000]),
+        max_tokens=1500,
     )
-
-    raw = message.content[0].text.strip()
 
     # Strip markdown code fences if present
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
@@ -121,26 +168,11 @@ Privacy policy text:
         # Fallback: extract JSON object from response
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         if match:
-            data = json.loads(match.group())
+            try:
+                data = json.loads(match.group())
+            except json.JSONDecodeError:
+                return _empty_result("Analysis failed — could not parse response.")
         else:
-            data = {
-                "grade": "N/A",
-                "summary": "Analysis failed — could not parse response.",
-                "red_flags": [],
-                "warnings": [],
-                "clean_items": [],
-            }
+            return _empty_result("Analysis failed — could not parse response.")
 
-    # Ensure all required fields exist
-    data.setdefault("grade", "N/A")
-    data.setdefault("summary", "")
-    data.setdefault("red_flags", [])
-    data.setdefault("warnings", [])
-    data.setdefault("clean_items", [])
-
-    # Clamp arrays to 3 items
-    data["red_flags"] = data["red_flags"][:3]
-    data["warnings"] = data["warnings"][:3]
-    data["clean_items"] = data["clean_items"][:3]
-
-    return data
+    return _normalize(data)
