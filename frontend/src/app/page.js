@@ -126,23 +126,166 @@ export default function Home() {
   const hasSelection = selectedIds.size > 0;
 
   return (
-    <main className="max-w-5xl mx-auto px-4 py-10 flex flex-col gap-10">
+    <main className="max-w-5xl mx-auto px-4 py-10 flex flex-col gap-12">
       {/* Header */}
-      <header className="flex flex-col gap-3 text-center">
-        <h1 className="text-4xl font-bold tracking-tight">
-          <span className="text-indigo-400">🔍</span> PolicyLens
+      <header className="scan-line relative py-8 flex flex-col gap-3 text-center">
+        <h1
+          className="text-4xl font-bold tracking-tight"
+          style={{
+            fontFamily: 'var(--font-heading)',
+            background: 'linear-gradient(135deg, var(--pl-accent), #a78bfa, var(--pl-accent))',
+            backgroundSize: '200% auto',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
+        >
+          PolicyLens
         </h1>
-        <p className="text-slate-400 text-lg">Know what you&apos;re agreeing to</p>
-        <div className="flex justify-center gap-8 mt-2 text-sm text-slate-500">
-          <span>① Select services</span>
-          <span>② Calculate your profile</span>
-          <span>③ Understand your risk</span>
+        <p style={{ color: 'var(--pl-text-muted)', fontSize: '1.15rem' }}>
+          Know what you&apos;re agreeing to
+        </p>
+        <div className="flex justify-center items-center gap-0 mt-4">
+          {/* Step 1 */}
+          <div
+            style={{
+              border: '1px solid var(--pl-border)',
+              background: 'var(--pl-surface)',
+              fontFamily: 'var(--font-mono)',
+              animation: 'fadeInUp 0.5s ease forwards',
+              animationDelay: '0.1s',
+              opacity: 0,
+              padding: '6px 14px',
+              borderRadius: '9999px',
+              fontSize: '0.8rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <span
+              style={{
+                background: 'var(--pl-accent-muted)',
+                color: 'var(--pl-accent)',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+              }}
+            >
+              1
+            </span>
+            Select services
+          </div>
+          {/* Connecting line */}
+          <div
+            style={{
+              width: '48px',
+              height: '1px',
+              background: 'var(--pl-border)',
+              animation: 'lineGrow 0.4s ease forwards',
+              animationDelay: '0.3s',
+              transformOrigin: 'left',
+              transform: 'scaleX(0)',
+            }}
+          />
+          {/* Step 2 */}
+          <div
+            style={{
+              border: '1px solid var(--pl-border)',
+              background: 'var(--pl-surface)',
+              fontFamily: 'var(--font-mono)',
+              animation: 'fadeInUp 0.5s ease forwards',
+              animationDelay: '0.3s',
+              opacity: 0,
+              padding: '6px 14px',
+              borderRadius: '9999px',
+              fontSize: '0.8rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <span
+              style={{
+                background: 'var(--pl-accent-muted)',
+                color: 'var(--pl-accent)',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+              }}
+            >
+              2
+            </span>
+            Scan policies
+          </div>
+          {/* Connecting line */}
+          <div
+            style={{
+              width: '48px',
+              height: '1px',
+              background: 'var(--pl-border)',
+              animation: 'lineGrow 0.4s ease forwards',
+              animationDelay: '0.5s',
+              transformOrigin: 'left',
+              transform: 'scaleX(0)',
+            }}
+          />
+          {/* Step 3 */}
+          <div
+            style={{
+              border: '1px solid var(--pl-border)',
+              background: 'var(--pl-surface)',
+              fontFamily: 'var(--font-mono)',
+              animation: 'fadeInUp 0.5s ease forwards',
+              animationDelay: '0.5s',
+              opacity: 0,
+              padding: '6px 14px',
+              borderRadius: '9999px',
+              fontSize: '0.8rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <span
+              style={{
+                background: 'var(--pl-accent-muted)',
+                color: 'var(--pl-accent)',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+              }}
+            >
+              3
+            </span>
+            Understand risk
+          </div>
         </div>
       </header>
 
       {/* Service selection */}
       <section className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-slate-200">Popular Services</h2>
+        <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
+          Popular Services
+        </h2>
+        <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.875rem' }}>
+          Select the services you use to scan their privacy policies.
+        </p>
         <ServiceGrid
           services={services}
           selectedIds={selectedIds}
@@ -154,8 +297,10 @@ export default function Home() {
 
       {/* Add custom service */}
       <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold text-slate-200">Add a Custom Service</h2>
-        <p className="text-sm text-slate-500">
+        <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
+          Add a Custom Service
+        </h2>
+        <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.875rem' }}>
           Enter any website URL — we&apos;ll find its privacy policy automatically.
         </p>
         <AddService onAdd={handleAddCustom} />
@@ -164,41 +309,86 @@ export default function Home() {
       {/* CTA */}
       <section className="flex flex-col items-center gap-3">
         {error && (
-          <p className="text-red-400 text-sm bg-red-950/40 border border-red-800 rounded-lg px-4 py-2">
+          <p
+            className="text-sm rounded-lg px-4 py-2"
+            style={{
+              color: 'var(--pl-grade-f)',
+              background: 'rgba(255, 23, 68, 0.1)',
+              border: '1px solid rgba(255, 23, 68, 0.3)',
+            }}
+          >
             {error}
           </p>
         )}
         <button
           onClick={handleAnalyze}
           disabled={!hasSelection || isLoading}
-          className={`
-            px-8 py-3.5 rounded-xl font-semibold text-base transition-all
-            ${hasSelection && !isLoading
-              ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-900/40'
-              : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'}
-          `}
+          className={`px-8 py-3.5 rounded-xl text-base transition-all cursor-pointer ${isLoading ? 'scan-loading' : ''}`}
+          style={(() => {
+            if (hasSelection && !isLoading) {
+              return {
+                background: 'var(--pl-accent)',
+                color: 'var(--pl-bg)',
+                fontWeight: 600,
+                animation: 'buttonGlow 3s ease-in-out infinite',
+              };
+            }
+            if (isLoading) {
+              return { background: 'var(--pl-accent)', color: 'var(--pl-bg)', fontWeight: 600 };
+            }
+            return {
+              background: 'var(--pl-surface-2)',
+              color: 'var(--pl-text-dim)',
+              opacity: 0.6,
+              cursor: 'not-allowed',
+            };
+          })()}
         >
           {isLoading ? (
             <span className="flex items-center gap-3">
-              <span className="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full inline-block" />
-              Analyzing policies…
+              <div
+                style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '50%',
+                  border: '2px solid var(--pl-bg)',
+                  borderTopColor: 'transparent',
+                  animation: 'xraySpin 0.8s linear infinite',
+                }}
+              />
+              Scanning policies...
             </span>
           ) : (
-            `Calculate My Digital Risk Profile${hasSelection ? ` (${selectedIds.size})` : ''}`
+            `Analyze My Digital Risk Profile${hasSelection ? ` (${selectedIds.size})` : ''}`
           )}
         </button>
         {!hasSelection && (
-          <p className="text-slate-600 text-xs">Select at least one service above</p>
+          <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.75rem' }}>
+            Select at least one service above
+          </p>
         )}
       </section>
 
       {/* Results */}
       {results.length > 0 && (
-        <section className="flex flex-col gap-4">
-          <h2 className="text-lg font-semibold text-slate-200">Your Results</h2>
+        <section
+          className="flex flex-col gap-4"
+          style={{ animation: 'fadeInUp 0.6s ease forwards' }}
+        >
+          <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
+            Your Results
+          </h2>
           <RiskProfile overallGrade={overallGrade} results={results} />
         </section>
       )}
+
+      {/* Footer */}
+      <footer className="flex justify-center pt-4 pb-2">
+        <span className="hackathon-badge">
+          <span style={{ color: 'var(--pl-accent)' }}>&#9670;</span>
+          T1A Hackathon 2026 — PolicyLens
+        </span>
+      </footer>
     </main>
   );
 }

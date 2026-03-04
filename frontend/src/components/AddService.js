@@ -41,25 +41,53 @@ export default function AddService({ onAdd }) {
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
           placeholder="https://example.com"
-          className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-100
-            placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500
-            text-sm"
+          className="flex-1 rounded-lg px-4 py-2.5 text-sm transition-colors"
+          style={{
+            background: 'var(--pl-surface)',
+            border: '1px solid var(--pl-border)',
+            color: 'var(--pl-text)',
+            fontFamily: 'var(--font-mono)',
+            outline: 'none',
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = 'var(--pl-accent)';
+            e.currentTarget.style.boxShadow = '0 0 0 1px var(--pl-accent)';
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = 'var(--pl-border)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
         />
         <button
           onClick={handleAdd}
           disabled={loading || !url.trim()}
-          className="px-5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50
-            disabled:cursor-not-allowed font-medium text-sm transition-colors flex items-center gap-2"
+          className="px-5 py-2.5 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
+          style={(() => {
+            const isDisabled = loading || !url.trim();
+            return {
+              background: isDisabled ? 'var(--pl-surface-2)' : 'var(--pl-accent)',
+              color: isDisabled ? 'var(--pl-text-dim)' : 'var(--pl-bg)',
+              opacity: isDisabled ? 0.5 : 1,
+              cursor: isDisabled ? 'not-allowed' : 'pointer',
+            };
+          })()}
         >
           {loading ? (
             <>
-              <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-              Adding…
+              <span
+                className="inline-block w-4 h-4 rounded-full"
+                style={{
+                  border: '2px solid var(--pl-bg)',
+                  borderTopColor: 'transparent',
+                  animation: 'xraySpin 0.8s linear infinite',
+                }}
+              />
+              Adding...
             </>
           ) : 'Add'}
         </button>
       </div>
-      {error && <p className="text-red-400 text-xs">{error}</p>}
+      {error && <p className="text-xs" style={{ color: 'var(--pl-grade-f)' }}>{error}</p>}
     </div>
   );
 }

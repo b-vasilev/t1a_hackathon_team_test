@@ -15,6 +15,7 @@ const eslintConfig = [
     },
     rules: {
       ...nextPlugin.configs.recommended.rules,
+      "@next/next/no-page-custom-font": "off",
       "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^[A-Z]" }],
       "no-console": ["warn", { allow: ["warn", "error"] }],
       "no-var": "error",
