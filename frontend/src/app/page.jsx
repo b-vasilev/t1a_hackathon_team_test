@@ -5,12 +5,14 @@ import Image from 'next/image';
 import ServiceGrid from '@/components/ServiceGrid';
 import AddService from '@/components/AddService';
 import RiskProfile from '@/components/RiskProfile';
+import CompareTab from '@/components/CompareTab';
 
 const SS_KEYS = {
   selectedIds: 'pl_selectedIds',
   customServices: 'pl_customServices',
   results: 'pl_results',
   overallGrade: 'pl_overallGrade',
+  activeTab: 'pl_active_tab',
 };
 
 function loadFromSession(key, fallback) {
@@ -29,6 +31,7 @@ function saveToSession(key, value) {
 }
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState('analyze');
   const [services, setServices] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [customServices, setCustomServices] = useState([]);
@@ -77,6 +80,7 @@ export default function Home() {
     setCustomServices(loadFromSession(SS_KEYS.customServices, []));
     setResults(loadFromSession(SS_KEYS.results, []));
     setOverallGrade(loadFromSession(SS_KEYS.overallGrade, null));
+    setActiveTab(loadFromSession(SS_KEYS.activeTab, 'analyze'));
     setHydrated(true);
   }, []);
 
@@ -98,6 +102,12 @@ export default function Home() {
     saveToSession(SS_KEYS.results, results);
     saveToSession(SS_KEYS.overallGrade, overallGrade);
   }, [results, overallGrade, hydrated]);
+
+  // Persist activeTab
+  useEffect(() => {
+    if (!hydrated) {return;}
+    saveToSession(SS_KEYS.activeTab, activeTab);
+  }, [activeTab, hydrated]);
 
   const toggleService = useCallback((id) => {
     setSelectedIds((prev) => {
@@ -193,6 +203,28 @@ export default function Home() {
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-10 flex flex-col gap-12">
+      {/* Tab switcher */}
+      <div className="flex justify-center">
+        <div
+          className="flex gap-1 p-1 rounded-full"
+          style={{ background: 'var(--pl-surface)', border: '1px solid var(--pl-border)' }}
+        >
+          {['analyze', 'compare'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className="px-5 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer capitalize"
+              style={activeTab === tab
+                ? { background: 'var(--pl-accent)', color: 'var(--pl-bg)' }
+                : { color: 'var(--pl-text-muted)' }
+              }
+            >
+              {tab === 'analyze' ? 'Analyze' : 'Compare'}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Hero */}
       <header className="hero-section scan-line relative py-12 md:py-20 flex flex-col gap-5 text-center items-center">
         <Image
@@ -268,9 +300,9 @@ export default function Home() {
           }}
         >
           {[
-            { icon: '◈', label: 'No account needed' },
-            { icon: '◇', label: 'Free' },
-            { icon: '⬡', label: 'AI-powered' },
+            { icon: '\u25C8', label: 'No account needed' },
+            { icon: '\u25C7', label: 'Free' },
+            { icon: '\u2B21', label: 'AI-powered' },
           ].map((chip) => (
             <span
               key={chip.label}
@@ -473,119 +505,127 @@ export default function Home() {
         </button>
       </header>
 
-      {/* Service selection */}
-      <section id="services" className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
-          Popular Services
-        </h2>
-        <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.875rem' }}>
-          Select the services you use to scan their privacy policies.
-        </p>
-        <ServiceGrid
-          services={services}
-          selectedIds={selectedIds}
-          onToggle={toggleService}
-          customServices={customServices}
-          onRemoveCustom={handleRemoveCustom}
-        />
-      </section>
+      {activeTab === 'analyze' && (
+        <>
+          {/* Service selection */}
+          <section id="services" className="flex flex-col gap-4">
+            <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
+              Popular Services
+            </h2>
+            <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.875rem' }}>
+              Select the services you use to scan their privacy policies.
+            </p>
+            <ServiceGrid
+              services={services}
+              selectedIds={selectedIds}
+              onToggle={toggleService}
+              customServices={customServices}
+              onRemoveCustom={handleRemoveCustom}
+            />
+          </section>
 
-      {/* Add custom service */}
-      <section className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
-          Add a Custom Service
-        </h2>
-        <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.875rem' }}>
-          Enter any website URL — we&apos;ll find its privacy policy automatically.
-        </p>
-        <AddService onAdd={handleAddCustom} />
-      </section>
+          {/* Add custom service */}
+          <section className="flex flex-col gap-3">
+            <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
+              Add a Custom Service
+            </h2>
+            <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.875rem' }}>
+              Enter any website URL — we&apos;ll find its privacy policy automatically.
+            </p>
+            <AddService onAdd={handleAddCustom} />
+          </section>
 
-      {/* CTA */}
-      <section className="flex flex-col items-center gap-3">
-        {error && (
-          <p
-            className="text-sm rounded-lg px-4 py-2"
-            style={{
-              color: 'var(--pl-grade-f)',
-              background: 'rgba(255, 23, 68, 0.1)',
-              border: '1px solid rgba(255, 23, 68, 0.3)',
-            }}
-          >
-            {error}
-          </p>
-        )}
-        <button
-          onClick={handleAnalyze}
-          disabled={!hasSelection || isLoading}
-          className={`px-8 py-3.5 rounded-xl text-base transition-all cursor-pointer ${isLoading ? 'scan-loading' : ''}`}
-          style={(() => {
-            if (hasSelection && !isLoading) {
-              return {
-                background: 'var(--pl-accent)',
-                color: 'var(--pl-bg)',
-                fontWeight: 600,
-                animation: 'buttonGlow 3s ease-in-out infinite',
-              };
-            }
-            if (isLoading) {
-              return { background: 'var(--pl-accent)', color: 'var(--pl-bg)', fontWeight: 600 };
-            }
-            return {
-              background: 'var(--pl-surface-2)',
-              color: 'var(--pl-text-dim)',
-              opacity: 0.6,
-              cursor: 'not-allowed',
-            };
-          })()}
-        >
-          {isLoading ? (
-            <span className="flex items-center gap-3">
-              <div
+          {/* CTA */}
+          <section className="flex flex-col items-center gap-3">
+            {error && (
+              <p
+                className="text-sm rounded-lg px-4 py-2"
                 style={{
-                  width: '20px',
-                  height: '20px',
-                  borderRadius: '50%',
-                  border: '2px solid var(--pl-bg)',
-                  borderTopColor: 'transparent',
-                  animation: 'xraySpin 0.8s linear infinite',
+                  color: 'var(--pl-grade-f)',
+                  background: 'rgba(255, 23, 68, 0.1)',
+                  border: '1px solid rgba(255, 23, 68, 0.3)',
                 }}
-              />
-              Scanning policies...
-            </span>
-          ) : (
-            `Analyze My Digital Risk Profile${hasSelection ? ` (${selectedIds.size})` : ''}`
-          )}
-        </button>
-        {!hasSelection && (
-          <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.75rem' }}>
-            Select at least one service above
-          </p>
-        )}
-        <p style={{ color: 'var(--pl-text-muted)', fontSize: '0.75rem', textAlign: 'center', maxWidth: '360px' }}>
-          Not ready to face the truth? That&apos;s fair — you can always just{' '}
-          <button
-            onClick={openSudokuPopup}
-            style={{ color: 'var(--pl-accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}
-          >
-            play Sudoku
-          </button>
-          {' '}instead. Your data will be harvested either way 😅 Share your sudoku success with friends!
-        </p>
-      </section>
+              >
+                {error}
+              </p>
+            )}
+            <button
+              onClick={handleAnalyze}
+              disabled={!hasSelection || isLoading}
+              className={`px-8 py-3.5 rounded-xl text-base transition-all cursor-pointer ${isLoading ? 'scan-loading' : ''}`}
+              style={(() => {
+                if (hasSelection && !isLoading) {
+                  return {
+                    background: 'var(--pl-accent)',
+                    color: 'var(--pl-bg)',
+                    fontWeight: 600,
+                    animation: 'buttonGlow 3s ease-in-out infinite',
+                  };
+                }
+                if (isLoading) {
+                  return { background: 'var(--pl-accent)', color: 'var(--pl-bg)', fontWeight: 600 };
+                }
+                return {
+                  background: 'var(--pl-surface-2)',
+                  color: 'var(--pl-text-dim)',
+                  opacity: 0.6,
+                  cursor: 'not-allowed',
+                };
+              })()}
+            >
+              {isLoading ? (
+                <span className="flex items-center gap-3">
+                  <div
+                    style={{
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      border: '2px solid var(--pl-bg)',
+                      borderTopColor: 'transparent',
+                      animation: 'xraySpin 0.8s linear infinite',
+                    }}
+                  />
+                  Scanning policies...
+                </span>
+              ) : (
+                `Analyze My Digital Risk Profile${hasSelection ? ` (${selectedIds.size})` : ''}`
+              )}
+            </button>
+            {!hasSelection && (
+              <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.75rem' }}>
+                Select at least one service above
+              </p>
+            )}
+            <p style={{ color: 'var(--pl-text-muted)', fontSize: '0.75rem', textAlign: 'center', maxWidth: '360px' }}>
+              Not ready to face the truth? That&apos;s fair — you can always just{' '}
+              <button
+                onClick={openSudokuPopup}
+                style={{ color: 'var(--pl-accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}
+              >
+                play Sudoku
+              </button>
+              {' '}instead. Your data will be harvested either way. Share your sudoku success with friends!
+            </p>
+          </section>
 
-      {/* Results */}
-      {results.length > 0 && (
-        <section
-          ref={resultsRef}
-          className="flex flex-col gap-4"
-          style={{ animation: 'fadeInUp 0.6s ease forwards' }}
-        >
-          <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
-            Your Results
-          </h2>
-          <RiskProfile overallGrade={overallGrade} results={results} onRescanService={rescanService} onClearCache={clearCache} isLoading={isLoading} />
-        </section>
+          {/* Results */}
+          {results.length > 0 && (
+            <section
+              ref={resultsRef}
+              className="flex flex-col gap-4"
+              style={{ animation: 'fadeInUp 0.6s ease forwards' }}
+            >
+              <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
+                Your Results
+              </h2>
+              <RiskProfile overallGrade={overallGrade} results={results} onRescanService={rescanService} onClearCache={clearCache} isLoading={isLoading} />
+            </section>
+          )}
+        </>
+      )}
+
+      {activeTab === 'compare' && (
+        <CompareTab services={services} parentHydrated={hydrated} />
       )}
 
       {/* Scan complete toast */}
@@ -609,7 +649,7 @@ export default function Home() {
             whiteSpace: 'nowrap',
           }}
         >
-          <span style={{ color: 'var(--pl-accent)', fontSize: '1rem' }}>✓</span>
+          <span style={{ color: 'var(--pl-accent)', fontSize: '1rem' }}>&#x2713;</span>
           <span style={{ color: 'var(--pl-text)', fontSize: '0.875rem', fontWeight: 500 }}>
             Scan complete — your privacy report is ready!
           </span>
@@ -629,14 +669,14 @@ export default function Home() {
               cursor: 'pointer',
             }}
           >
-            View results ↓
+            View results &#x2193;
           </button>
           <button
             onClick={() => setScanComplete(false)}
             style={{ background: 'none', border: 'none', color: 'var(--pl-text-dim)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0 }}
             title="Dismiss"
           >
-            ✕
+            &#x2715;
           </button>
         </div>
       )}
