@@ -30,6 +30,16 @@ function saveToSession(key, value) {
   sessionStorage.setItem(key, JSON.stringify(value));
 }
 
+const SCAN_MSGS = [
+  'Fetching privacy policy...',
+  'Parsing policy document...',
+  'Detecting data collection clauses...',
+  'Analyzing third-party sharing...',
+  'Evaluating user rights & opt-outs...',
+  'Scoring risk factors...',
+  'Generating your report...',
+];
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState('analyze');
   const [services, setServices] = useState([]);
@@ -41,8 +51,11 @@ export default function Home() {
   const [error, setError] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
+  const [noSudoku, setNoSudoku] = useState(false);
+  const [scanMsg, setScanMsg] = useState('');
   const sudokuWindowRef = useRef(null);
   const resultsRef = useRef(null);
+  const scanMsgTimerRef = useRef(null);
 
   const openSudokuPopup = useCallback(() => {
     if (!sudokuWindowRef.current || sudokuWindowRef.current.closed) {
@@ -81,6 +94,7 @@ export default function Home() {
     setResults(loadFromSession(SS_KEYS.results, []));
     setOverallGrade(loadFromSession(SS_KEYS.overallGrade, null));
     setActiveTab(loadFromSession(SS_KEYS.activeTab, 'analyze'));
+    setNoSudoku(!!sessionStorage.getItem('pl_no_sudoku'));
     setHydrated(true);
   }, []);
 
@@ -138,7 +152,24 @@ export default function Home() {
   const handleAnalyze = async () => {
     setIsLoading(true);
     setError('');
-    openSudokuPopup();
+
+    // Start progress message cycling
+    setScanMsg(SCAN_MSGS[0]);
+    let msgIdx = 0;
+    const advanceMsg = () => {
+      msgIdx += 1;
+      if (msgIdx < SCAN_MSGS.length) {
+        setScanMsg(SCAN_MSGS[msgIdx]);
+        scanMsgTimerRef.current = setTimeout(advanceMsg, 2800);
+      }
+    };
+    scanMsgTimerRef.current = setTimeout(advanceMsg, 2800);
+
+    // Open Sudoku popup unless user opted out
+    if (!noSudoku) {
+      openSudokuPopup();
+    }
+
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
@@ -161,6 +192,8 @@ export default function Home() {
     } catch (e) {
       setError(e.message);
     } finally {
+      clearTimeout(scanMsgTimerRef.current);
+      setScanMsg('');
       setIsLoading(false);
     }
   };
@@ -591,6 +624,24 @@ export default function Home() {
                 `Analyze My Digital Risk Profile${hasSelection ? ` (${selectedIds.size})` : ''}`
               )}
             </button>
+
+            {/* Progress log */}
+            {isLoading && scanMsg && (
+              <p
+                style={{
+                  color: 'var(--pl-accent)',
+                  fontSize: '0.75rem',
+                  fontFamily: 'var(--font-mono)',
+                  animation: 'fadeInUp 0.3s ease forwards',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span style={{ opacity: 0.6 }}>&rsaquo;</span>
+                {scanMsg}
+              </p>
+            )}
             {!hasSelection && (
               <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.75rem' }}>
                 Select at least one service above
@@ -606,6 +657,31 @@ export default function Home() {
               </button>
               {' '}instead. Your data will be harvested either way. Share your sudoku success with friends!
             </p>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.7rem',
+                color: 'var(--pl-text-muted)',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={noSudoku}
+                onChange={(e) => {
+                  setNoSudoku(e.target.checked);
+                  if (e.target.checked) {
+                    sessionStorage.setItem('pl_no_sudoku', '1');
+                  } else {
+                    sessionStorage.removeItem('pl_no_sudoku');
+                  }
+                }}
+                style={{ accentColor: 'var(--pl-accent)', cursor: 'pointer' }}
+              />
+              Skip Sudoku popup during scans
+            </label>
           </section>
 
           {/* Results */}
@@ -629,7 +705,7 @@ export default function Home() {
       )}
 
       {/* Scan complete toast */}
-      {scanComplete && (
+      {scanComplete && !noSudoku && (
         <div
           style={{
             position: 'fixed',
