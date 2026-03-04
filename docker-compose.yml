@@ -1,0 +1,31 @@
+services:
+  backend:
+    build: ./backend
+    expose:
+      - "8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-https://api.anthropic.com}
+      - DATABASE_URL=sqlite:////data/policylens.db
+    volumes:
+      - sqlite_data:/data
+    networks:
+      - app
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - app
+
+volumes:
+  sqlite_data: {}
+
+networks:
+  app:
+    driver: bridge
