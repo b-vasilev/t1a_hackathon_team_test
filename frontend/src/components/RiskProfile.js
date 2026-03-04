@@ -105,7 +105,7 @@ function actionCategoryIcon(category) {
   return icons[category] || '\u2139\uFE0F';
 }
 
-function ServiceCard({ result }) {
+function ServiceCard({ result, onRescan, isLoading }) {
   const [expanded, setExpanded] = useState(false);
   const hasDetails =
     result.actions?.length > 0 ||
@@ -137,6 +137,24 @@ function ServiceCard({ result }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold" style={{ color: 'var(--pl-text)' }}>{result.name}</span>
             <GradeBadge grade={result.grade} size="sm" />
+            {onRescan && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onRescan(result.service_id); }}
+                disabled={isLoading}
+                title="Rescan this service"
+                className="ml-auto shrink-0 p-1 rounded-md transition-colors cursor-pointer"
+                style={{
+                  color: 'var(--pl-text-muted)',
+                  opacity: isLoading ? 0.3 : 0.6,
+                }}
+                onMouseEnter={(e) => { if (!isLoading) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--pl-accent)'; } }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.6'; e.currentTarget.style.color = 'var(--pl-text-muted)'; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                </svg>
+              </button>
+            )}
           </div>
           <p className="text-sm mt-1" style={{ color: 'var(--pl-text-muted)' }}>{result.summary}</p>
         </div>
@@ -244,7 +262,7 @@ function ServiceCard({ result }) {
   );
 }
 
-export default function RiskProfile({ overallGrade, results }) {
+export default function RiskProfile({ overallGrade, results, onRescanService, onClearCache, isLoading }) {
   if (!results || results.length === 0) { return null; }
 
   const totalRedFlags = results.reduce((n, r) => n + (r.red_flags?.length || 0), 0);
@@ -286,13 +304,31 @@ export default function RiskProfile({ overallGrade, results }) {
               <span style={{ color: 'var(--pl-text-muted)' }}>{totalClean} positive{totalClean !== 1 ? 's' : ''}</span>
             </span>
           </div>
+          {onClearCache && (
+            <button
+              onClick={onClearCache}
+              disabled={isLoading}
+              className="mt-3 text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--pl-text-muted)',
+                background: 'rgba(102, 102, 128, 0.08)',
+                border: '1px solid rgba(102, 102, 128, 0.2)',
+                opacity: isLoading ? 0.5 : 1,
+              }}
+              onMouseEnter={(e) => { if (!isLoading) { e.currentTarget.style.background = 'rgba(102, 102, 128, 0.15)'; } }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(102, 102, 128, 0.08)'; }}
+            >
+              Clear Cache
+            </button>
+          )}
         </div>
       </div>
 
       {/* Per-service cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 stagger-children">
         {results.map((r) => (
-          <ServiceCard key={r.service_id} result={r} />
+          <ServiceCard key={r.service_id} result={r} onRescan={onRescanService} isLoading={isLoading} />
         ))}
       </div>
     </div>

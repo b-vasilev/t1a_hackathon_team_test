@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .analyzer import LLM_MODEL, analyze_policy, average_grade, find_privacy_policy_url, get_service_actions
@@ -158,6 +158,25 @@ async def add_custom_service(
         "icon": service.icon,
         "has_analysis": False,
     }
+
+
+# ── Cache ────────────────────────────────────────────────────────────────────
+
+
+@app.delete("/api/services/{service_id}/cache")
+async def clear_service_cache(service_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(delete(PolicyAnalysis).where(PolicyAnalysis.service_id == service_id))
+    await db.commit()
+    logger.info("Cleared cache for service %d (%d rows)", service_id, result.rowcount)
+    return {"cleared": True}
+
+
+@app.delete("/api/cache")
+async def clear_all_cache(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(delete(PolicyAnalysis))
+    await db.commit()
+    logger.info("Cleared all cache (%d rows)", result.rowcount)
+    return {"cleared": result.rowcount}
 
 
 # ── Analyze ───────────────────────────────────────────────────────────────────

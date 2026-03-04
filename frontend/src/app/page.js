@@ -123,6 +123,40 @@ export default function Home() {
     }
   };
 
+  const rescanService = useCallback(async (serviceId) => {
+    setIsLoading(true);
+    setError('');
+    try {
+      await fetch(`/api/services/${serviceId}/cache`, { method: 'DELETE' });
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service_ids: [serviceId] }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Rescan failed');
+      }
+      const data = await res.json();
+      const newResult = data.results[0];
+      setResults((prev) => prev.map((r) => r.service_id === serviceId ? newResult : r));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const clearCache = useCallback(async () => {
+    try {
+      await fetch('/api/cache', { method: 'DELETE' });
+      setResults([]);
+      setOverallGrade(null);
+    } catch (e) {
+      setError(e.message);
+    }
+  }, []);
+
   const hasSelection = selectedIds.size > 0;
 
   return (
@@ -378,7 +412,7 @@ export default function Home() {
           <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
             Your Results
           </h2>
-          <RiskProfile overallGrade={overallGrade} results={results} />
+          <RiskProfile overallGrade={overallGrade} results={results} onRescanService={rescanService} onClearCache={clearCache} isLoading={isLoading} />
         </section>
       )}
 
