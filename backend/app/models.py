@@ -15,6 +15,7 @@ class Service(Base):
     privacy_policy_url: Mapped[str | None] = mapped_column(String, nullable=True)
     is_popular: Mapped[bool] = mapped_column(Boolean, default=False)
     icon: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     analyses: Mapped[list["PolicyAnalysis"]] = relationship(
