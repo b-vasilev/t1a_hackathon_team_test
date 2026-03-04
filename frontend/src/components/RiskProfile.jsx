@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import ServiceIcon from '@/components/ServiceIcon';
 import PolicyChat from '@/components/PolicyChat';
+import PolicyViewer from '@/components/PolicyViewer';
 
 function gradeToPercent(grade) {
   if (!grade || grade === 'N/A') {
@@ -109,6 +110,7 @@ function actionCategoryIcon(category) {
 function ServiceCard({ result, onRescan, isLoading }) {
   const [expanded, setExpanded] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const hasDetails =
     result.actions?.length > 0 ||
     result.red_flags?.length > 0 ||
@@ -266,21 +268,41 @@ function ServiceCard({ result, onRescan, isLoading }) {
 
       {result.grade && result.grade !== 'N/A' && (
         <>
-          <button
-            onClick={() => setChatOpen(!chatOpen)}
-            className="text-xs self-start transition-colors"
-            style={{ color: 'var(--pl-accent)', fontFamily: 'var(--font-mono)', outline: 'none' }}
-            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-            onFocus={(e) => { e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.opacity = '0.9'; }}
-            onBlur={(e) => { e.currentTarget.style.textDecoration = 'none'; e.currentTarget.style.opacity = '1'; }}
-          >
-            {chatOpen ? '[ x ] Close chat' : '[ ? ] Ask about this policy'}
-          </button>
+          <div className="flex gap-3 flex-wrap">
+            <button
+              onClick={() => setChatOpen(!chatOpen)}
+              className="text-xs self-start transition-colors"
+              style={{ color: 'var(--pl-accent)', fontFamily: 'var(--font-mono)', outline: 'none' }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+              onFocus={(e) => { e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.opacity = '0.9'; }}
+              onBlur={(e) => { e.currentTarget.style.textDecoration = 'none'; e.currentTarget.style.opacity = '1'; }}
+            >
+              {chatOpen ? '[ x ] Close chat' : '[ ? ] Ask about this policy'}
+            </button>
+            <button
+              onClick={() => setViewerOpen(true)}
+              className="text-xs self-start transition-colors"
+              style={{ color: 'var(--pl-text-muted)', fontFamily: 'var(--font-mono)', outline: 'none' }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.color = 'var(--pl-accent)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--pl-text-muted)'; }}
+            >
+              [ doc ] View full policy
+            </button>
+          </div>
 
           <div className={`details-collapse ${chatOpen ? 'open' : ''}`}>
             {chatOpen && <PolicyChat serviceId={result.service_id} />}
           </div>
+
+          {viewerOpen && (
+            <PolicyViewer
+              serviceId={result.service_id}
+              serviceName={result.name}
+              grade={result.grade}
+              onClose={() => setViewerOpen(false)}
+            />
+          )}
         </>
       )}
     </div>
@@ -325,7 +347,7 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
         }}
       >
         <GradeBadge grade={overallGrade} size="lg" />
-        <div style={{ position: 'relative', zIndex: 1 }}>
+        <div style={{ position: 'relative' }}>
           <h2
             className="text-xl font-bold"
             style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}

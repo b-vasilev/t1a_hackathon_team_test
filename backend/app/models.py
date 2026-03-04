@@ -22,6 +22,21 @@ class Service(Base):
     )
 
 
+class PolicyText(Base):
+    __tablename__ = "policy_texts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    content_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    char_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    was_truncated: Mapped[bool] = mapped_column(Boolean, default=False)
+    sections_json: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    source_url: Mapped[str] = mapped_column(String, nullable=False)
+
+    analyses: Mapped[list["PolicyAnalysis"]] = relationship("PolicyAnalysis", back_populates="policy_text_rel")
+
+
 class PolicyAnalysis(Base):
     __tablename__ = "policy_analyses"
 
@@ -36,6 +51,10 @@ class PolicyAnalysis(Base):
     positives: Mapped[str] = mapped_column(Text, default="[]")  # JSON
     actions: Mapped[str] = mapped_column(Text, default="[]")  # JSON
     policy_text: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    policy_text_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("policy_texts.id"), nullable=True, default=None
+    )
     analyzed_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     service: Mapped["Service"] = relationship("Service", back_populates="analyses")
+    policy_text_rel: Mapped["PolicyText | None"] = relationship("PolicyText", back_populates="analyses")

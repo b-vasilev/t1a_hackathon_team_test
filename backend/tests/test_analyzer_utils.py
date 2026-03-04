@@ -1,7 +1,13 @@
 from app.analyzer import (
+    _build_section_index,
+    _clean_jina_text,
     _empty_result,
+    _extract_structured_text,
     _extract_text,
+    _is_google_page,
+    find_relevant_sections,
     _has_useful_content,
+    _hash_text,
     _normalize,
     average_grade,
     gpa_to_letter,
@@ -175,6 +181,166 @@ class TestHasUsefulContent:
         assert _has_useful_content(html) is False
 
     def test_custom_min_length(self):
-        html = "<p>" + "x" * 100 + "</p>"
+        # Must be >= 200 chars to pass _is_blocked_page check
+        html = "<p>" + "x" * 300 + "</p>"
         assert _has_useful_content(html, min_length=50) is True
-        assert _has_useful_content(html, min_length=200) is False
+        assert _has_useful_content(html, min_length=500) is False
+
+
+class TestExtractStructuredText:
+    def test_preserves_headings(self):
+        html = "<html><body><h2>Privacy</h2><p>We care about privacy.</p></body></html>"
+        text, truncated = _extract_structured_text(html, 10000)
+        assert "## Privacy" in text
+        assert "We care about privacy." in text
+        assert truncated is False
+
+    def test_preserves_list_items(self):
+        html = "<html><body><ul><li>Item one</li><li>Item two</li></ul></body></html>"
+        text, _ = _extract_structured_text(html, 10000)
+        assert "- Item one" in text
+        assert "- Item two" in text
+
+    def test_multiple_heading_levels(self):
+        html = "<html><body><h1>Title</h1><h3>Sub</h3><p>Content</p></body></html>"
+        text, _ = _extract_structured_text(html, 10000)
+        assert "## Title" in text
+        assert "## Sub" in text
+
+    def test_truncation_flag(self):
+        html = "<html><body>" + "<p>Long text paragraph here that is quite verbose.</p>" * 200 + "</body></html>"
+        text, truncated = _extract_structured_text(html, 500)
+        assert len(text) <= 500
+        assert truncated is True
+
+    def test_empty_body(self):
+        html = "<html><body></body></html>"
+        text, truncated = _extract_structured_text(html, 10000)
+        assert text == ""
+        assert truncated is False
+
+    def test_strips_script_and_style(self):
+        html = "<html><body><script>evil()</script><style>.x{}</style><p>Clean</p></body></html>"
+        text, _ = _extract_structured_text(html, 10000)
+        assert "evil" not in text
+        assert "Clean" in text
+
+
+class TestBuildSectionIndex:
+    def test_basic_sections(self):
+        text = "## Introduction\n\nSome text here.\n\n## Data Collection\n\nWe collect data.\n\n## Your Rights\n\nYou have rights."
+        sections = _build_section_index(text)
+        assert len(sections) == 3
+        assert sections[0]["heading"] == "Introduction"
+        assert sections[1]["heading"] == "Data Collection"
+        assert sections[2]["heading"] == "Your Rights"
+
+    def test_empty_text(self):
+        assert _build_section_index("") == []
+
+    def test_no_headings(self):
+        assert _build_section_index("Just plain text without headings.") == []
+
+    def test_section_lengths_positive(self):
+        text = "## A\n\n12345\n\n## B\n\n67890"
+        sections = _build_section_index(text)
+        assert len(sections) == 2
+        assert all(s["length"] > 0 for s in sections)
+
+
+class TestHashText:
+    def test_deterministic(self):
+        assert _hash_text("hello") == _hash_text("hello")
+
+    def test_different_input_different_hash(self):
+        assert _hash_text("hello") != _hash_text("world")
+
+    def test_returns_hex_string(self):
+        result = _hash_text("test")
+        assert len(result) == 64
+        assert all(c in "0123456789abcdef" for c in result)
+
+
+class TestFindRelevantSections:
+    def test_matches_relevant_section(self):
+        text = "## Data Collection\nWe collect your email and name.\n\n## Data Sharing\nWe share with partners."
+        sections = _build_section_index(text)
+        result = find_relevant_sections("What data do you collect?", sections, text)
+        assert "collect your email" in result
+
+    def test_no_sections_returns_truncated_text(self):
+        text = "Just plain text " * 100
+        result = find_relevant_sections("question", [], text, max_chars=50)
+        assert len(result) <= 50
+
+    def test_no_match_returns_full_text(self):
+        text = "## Privacy\nSome content.\n\n## Terms\nMore content."
+        sections = _build_section_index(text)
+        result = find_relevant_sections("zzzzz unusual query", sections, text)
+        assert "Some content" in result
+
+    def test_respects_max_chars(self):
+        text = "## Data Collection\n" + "x" * 5000 + "\n\n## Data Sharing\n" + "y" * 5000
+        sections = _build_section_index(text)
+        result = find_relevant_sections("data collection sharing", sections, text, max_chars=100)
+        assert len(result) <= 100
+
+
+class TestIsGooglePage:
+    def test_detects_portuguese_consent_page(self):
+        text = "Antes de continuar para a Google Fornecer e manter os serviços Google"
+        assert _is_google_page(text) is True
+
+    def test_detects_english_consent_page(self):
+        text = "Before you continue to Google some other content here"
+        assert _is_google_page(text) is True
+
+    def test_detects_search_no_results(self):
+        text = "A sua pesquisa - cache:https://example.com - não encontrou nenhum documento."
+        assert _is_google_page(text) is True
+
+    def test_normal_content_passes(self):
+        text = "Privacy Policy. We collect data to provide services. " * 20
+        assert _is_google_page(text) is False
+
+    def test_empty_text(self):
+        assert _is_google_page("") is False
+
+
+class TestCleanJinaText:
+    def test_strips_metadata_headers(self):
+        text = "Title: Reddit Privacy Policy\nURL Source: https://reddit.com/privacy\nMarkdown Content:\n\n## Privacy\n\nWe care."
+        result = _clean_jina_text(text)
+        assert "Title:" not in result
+        assert "URL Source:" not in result
+        assert "Markdown Content:" not in result
+        assert "## Privacy" in result
+        assert "We care." in result
+
+    def test_converts_markdown_links_to_text(self):
+        text = "See our [Privacy Policy](https://example.com/privacy) for details."
+        result = _clean_jina_text(text)
+        assert result == "See our Privacy Policy for details."
+
+    def test_normalizes_heading_levels(self):
+        text = "# Title\n\n### Subsection\n\n#### Deep"
+        result = _clean_jina_text(text)
+        assert "## Title" in result
+        assert "## Subsection" in result
+        assert "## Deep" in result
+
+    def test_converts_star_bullets(self):
+        text = "* Item one\n* Item two\n+ Item three"
+        result = _clean_jina_text(text)
+        assert "- Item one" in result
+        assert "- Item two" in result
+        assert "- Item three" in result
+
+    def test_removes_bold_italic(self):
+        text = "This is **bold** and *italic* and ***both***."
+        result = _clean_jina_text(text)
+        assert result == "This is bold and italic and both."
+
+    def test_plain_text_passthrough(self):
+        text = "Just plain text without any markdown."
+        assert _clean_jina_text(text) == text

@@ -15,6 +15,10 @@ stop:
 reset:
     docker compose down -v
 
+# Remove local SQLite database
+remove-db:
+    rm -f backend/policylens.db data/policylens.db
+
 # Install all deps locally
 install:
     cd backend && pip install -e ".[dev]"

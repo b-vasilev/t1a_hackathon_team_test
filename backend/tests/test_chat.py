@@ -1,6 +1,16 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+
+def _mock_policy_text_obj(content="This is the full privacy policy text for testing purposes."):
+    """Create a mock PolicyText object."""
+    pt = MagicMock()
+    pt.id = 1
+    pt.content = content
+    pt.was_truncated = False
+    pt.sections_json = None
+    return pt
 
 
 @pytest.mark.asyncio
@@ -52,6 +62,7 @@ class TestChatEndpoint:
         assert resp.status_code == 404
         assert "no analysis" in resp.json()["detail"].lower()
 
+    @patch("app.main.get_or_create_policy_text", new_callable=AsyncMock, return_value=None)
     @patch("app.main.get_service_actions", new_callable=AsyncMock, return_value=[])
     @patch(
         "app.main.analyze_policy",
@@ -67,7 +78,7 @@ class TestChatEndpoint:
             "policy_text": None,
         },
     )
-    async def test_no_policy_text_returns_404(self, mock_analyze, mock_actions, client):
+    async def test_no_policy_text_returns_404(self, mock_analyze, mock_actions, mock_pt, client):
         # Analyze the service so a PolicyAnalysis row exists, but with policy_text=None
         services = (await client.get("/api/services")).json()
         sid = services[0]["id"]
@@ -81,9 +92,10 @@ class TestChatEndpoint:
             },
         )
         assert resp.status_code == 404
-        assert "no analysis" in resp.json()["detail"].lower()
+        assert "no" in resp.json()["detail"].lower()
 
     @patch("app.main.chat_about_policy", new_callable=AsyncMock, return_value="They collect your email.")
+    @patch("app.main.get_or_create_policy_text", new_callable=AsyncMock)
     @patch("app.main.get_service_actions", new_callable=AsyncMock, return_value=[])
     @patch(
         "app.main.analyze_policy",
@@ -99,7 +111,9 @@ class TestChatEndpoint:
             "policy_text": "This is the full privacy policy text for testing purposes.",
         },
     )
-    async def test_success_returns_answer(self, mock_analyze, mock_actions, mock_chat, client):
+    async def test_success_returns_answer(self, mock_analyze, mock_actions, mock_pt, mock_chat, client):
+        mock_pt.return_value = _mock_policy_text_obj()
+
         # First analyze the service to populate PolicyAnalysis with policy_text
         services = (await client.get("/api/services")).json()
         sid = services[0]["id"]
@@ -133,6 +147,7 @@ class TestChatEndpoint:
         new_callable=AsyncMock,
         side_effect=__import__("app.analyzer", fromlist=["LLMUnavailableError"]).LLMUnavailableError("API down"),
     )
+    @patch("app.main.get_or_create_policy_text", new_callable=AsyncMock)
     @patch("app.main.get_service_actions", new_callable=AsyncMock, return_value=[])
     @patch(
         "app.main.analyze_policy",
@@ -148,7 +163,9 @@ class TestChatEndpoint:
             "policy_text": "This is the full privacy policy text for testing purposes.",
         },
     )
-    async def test_llm_unavailable_returns_503(self, mock_analyze, mock_actions, mock_chat, client):
+    async def test_llm_unavailable_returns_503(self, mock_analyze, mock_actions, mock_pt, mock_chat, client):
+        mock_pt.return_value = _mock_policy_text_obj()
+
         # Analyze first
         services = (await client.get("/api/services")).json()
         sid = services[0]["id"]

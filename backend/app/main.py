@@ -4,6 +4,7 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,12 +19,16 @@ from .analyzer import (
     average_grade,
     chat_about_policy,
     find_privacy_policy_url,
+    find_relevant_sections,
+    get_or_create_policy_text,
     get_service_actions,
 )
 from .database import Base, SessionLocal, engine, get_db
 from .logging_config import setup_logging
-from .models import PolicyAnalysis, Service
+from .models import PolicyAnalysis, PolicyText, Service
 from .seed import seed_popular_services
+
+POLICY_CACHE_TTL_DAYS = int(os.getenv("POLICY_CACHE_TTL_DAYS", "7"))
 
 setup_logging()
 logger = logging.getLogger("policylens.main")
@@ -228,21 +233,30 @@ async def analyze_services(
             )
             cached = cached_result.scalar_one_or_none()
 
+            # TTL check: treat expired cache as miss
             if cached:
-                return {
-                    "service_id": svc_id,
-                    "name": svc_name,
-                    "icon": svc_icon,
-                    "grade": cached.grade,
-                    "summary": cached.summary,
-                    "red_flags": json.loads(cached.red_flags),
-                    "warnings": json.loads(cached.warnings),
-                    "positives": json.loads(cached.positives),
-                    "categories": json.loads(cached.categories),
-                    "highlights": json.loads(cached.highlights),
-                    "actions": json.loads(cached.actions) if cached.actions else [],
-                    "cached": True,
-                }
+                # Handle both naive and aware datetimes from SQLite
+                now = datetime.now(timezone.utc)
+                cached_at = cached.analyzed_at
+                if cached_at.tzinfo is None:
+                    cached_at = cached_at.replace(tzinfo=timezone.utc)
+                age_days = (now - cached_at).days
+                if age_days < POLICY_CACHE_TTL_DAYS:
+                    return {
+                        "service_id": svc_id,
+                        "name": svc_name,
+                        "icon": svc_icon,
+                        "grade": cached.grade,
+                        "summary": cached.summary,
+                        "red_flags": json.loads(cached.red_flags),
+                        "warnings": json.loads(cached.warnings),
+                        "positives": json.loads(cached.positives),
+                        "categories": json.loads(cached.categories),
+                        "highlights": json.loads(cached.highlights),
+                        "actions": json.loads(cached.actions) if cached.actions else [],
+                        "cached": True,
+                    }
+                logger.info("Cache expired for %s (age=%d days, ttl=%d)", svc_name, age_days, POLICY_CACHE_TTL_DAYS)
 
             privacy_policy_url = svc_privacy_policy_url
             if not privacy_policy_url:
@@ -273,8 +287,8 @@ async def analyze_services(
 
             try:
                 analysis_data, actions_data = await asyncio.gather(
-                    analyze_policy(privacy_policy_url, service_name=svc_name),
-                    get_service_actions(svc_name, svc_website_url),
+                    get_or_start_analysis(privacy_policy_url, service_name=svc_name),
+                    get_service_actions(svc_name, svc_website_url, policy_url=privacy_policy_url),
                 )
             except Exception as e:
                 logger.error("LLM API error for %s: %s", svc_name, e)
@@ -293,7 +307,19 @@ async def analyze_services(
                     "cached": False,
                 }
 
-            # Persist
+            # Deduplicate policy text via hash
+            policy_text_id = None
+            raw_text = analysis_data.get("policy_text")
+            if raw_text:
+                pt = await get_or_create_policy_text(
+                    session,
+                    source_url=privacy_policy_url,
+                    text=raw_text,
+                    was_truncated=analysis_data.get("was_truncated", False),
+                )
+                policy_text_id = pt.id
+
+            # Persist analysis
             analysis = PolicyAnalysis(
                 service_id=svc_id,
                 grade=analysis_data["grade"],
@@ -304,7 +330,8 @@ async def analyze_services(
                 categories=json.dumps(analysis_data.get("categories", {})),
                 highlights=json.dumps(analysis_data.get("highlights", [])),
                 actions=json.dumps(actions_data),
-                policy_text=analysis_data.get("policy_text"),
+                policy_text_id=policy_text_id,
+                policy_text=raw_text,
             )
             session.add(analysis)
             await session.commit()
@@ -324,6 +351,14 @@ async def analyze_services(
                 "cached": False,
                 "mock": analysis_data.get("mock", False),
             }
+
+    # Deduplicate LLM analysis: services sharing a policy URL reuse the same result
+    analysis_futures: dict[str, asyncio.Task] = {}
+
+    async def get_or_start_analysis(policy_url: str, service_name: str):
+        if policy_url not in analysis_futures:
+            analysis_futures[policy_url] = asyncio.create_task(analyze_policy(policy_url, service_name=service_name))
+        return await analysis_futures[policy_url]
 
     # Run analyses concurrently — pass scalar values so each coroutine can use its own session
     results = await asyncio.gather(
@@ -387,14 +422,42 @@ async def chat_with_policy(
         .limit(1)
     )
     analysis = analysis_result.scalar_one_or_none()
-    if not analysis or not analysis.policy_text:
+    if not analysis:
         raise HTTPException(
             status_code=404,
             detail="No analysis found for this service. Please analyze the service first.",
         )
 
-    # Truncate policy text for token budget
-    policy_text = analysis.policy_text[:50000]
+    # Load policy text: prefer PolicyText table, fall back to legacy column
+    policy_text_content = None
+    sections = []
+    was_truncated = False
+    if analysis.policy_text_id:
+        pt_result = await db.execute(select(PolicyText).where(PolicyText.id == analysis.policy_text_id))
+        pt = pt_result.scalar_one_or_none()
+        if pt:
+            policy_text_content = pt.content
+            was_truncated = pt.was_truncated
+            if pt.sections_json:
+                sections = json.loads(pt.sections_json)
+    if not policy_text_content and analysis.policy_text:
+        policy_text_content = analysis.policy_text
+
+    if not policy_text_content:
+        raise HTTPException(
+            status_code=404,
+            detail="No policy text found for this service. Please analyze the service first.",
+        )
+
+    # Use section-scoped context if sections available
+    last_question = req.messages[-1].content
+    if sections:
+        context = find_relevant_sections(last_question, sections, policy_text_content, max_chars=15000)
+    else:
+        context = policy_text_content[:50000]
+
+    if was_truncated:
+        context += "\n\n[Note: This policy text was truncated due to length. Some sections may be missing.]"
 
     # Build messages list for LLM
     messages = [{"role": m.role, "content": m.content} for m in req.messages]
@@ -403,10 +466,74 @@ async def chat_with_policy(
         answer = await chat_about_policy(
             service_name=service.name,
             grade=analysis.grade,
-            policy_text=policy_text,
+            policy_text=context,
             messages=messages,
         )
     except LLMUnavailableError:
         raise HTTPException(status_code=503, detail="LLM service is temporarily unavailable")
 
     return {"answer": answer, "service_id": req.service_id}
+
+
+# ── Policy Text ──────────────────────────────────────────────────────────────
+
+
+@app.get("/api/services/{service_id}/policy-text")
+async def get_policy_text(
+    service_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the stored policy text with sections and findings for the viewer modal."""
+    # Load service
+    svc_result = await db.execute(select(Service).where(Service.id == service_id))
+    service = svc_result.scalar_one_or_none()
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+
+    # Load latest analysis
+    analysis_result = await db.execute(
+        select(PolicyAnalysis)
+        .where(PolicyAnalysis.service_id == service_id)
+        .order_by(PolicyAnalysis.analyzed_at.desc())
+        .limit(1)
+    )
+    analysis = analysis_result.scalar_one_or_none()
+    if not analysis:
+        raise HTTPException(status_code=404, detail="No analysis found for this service")
+
+    # Load policy text
+    content = None
+    sections = []
+    was_truncated = False
+    fetched_at = None
+    source_url = None
+
+    if analysis.policy_text_id:
+        pt_result = await db.execute(select(PolicyText).where(PolicyText.id == analysis.policy_text_id))
+        pt = pt_result.scalar_one_or_none()
+        if pt:
+            content = pt.content
+            was_truncated = pt.was_truncated
+            fetched_at = pt.fetched_at.isoformat() if pt.fetched_at else None
+            source_url = pt.source_url
+            if pt.sections_json:
+                sections = json.loads(pt.sections_json)
+
+    if not content and analysis.policy_text:
+        content = analysis.policy_text
+
+    if not content:
+        raise HTTPException(status_code=404, detail="No policy text available")
+
+    return {
+        "content": content,
+        "sections": sections,
+        "was_truncated": was_truncated,
+        "fetched_at": fetched_at,
+        "source_url": source_url or service.privacy_policy_url,
+        "red_flags": json.loads(analysis.red_flags),
+        "warnings": json.loads(analysis.warnings),
+        "positives": json.loads(analysis.positives),
+        "grade": analysis.grade,
+        "service_name": service.name,
+    }

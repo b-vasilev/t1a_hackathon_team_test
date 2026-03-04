@@ -1,14 +1,19 @@
+import hashlib
 import json
 import logging
 import os
 import re
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import litellm
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from curl_cffi.requests import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession as DBSession
 
 from .mock_data import get_mock_actions, get_mock_analysis
+from .models import PolicyText
 from .prompts import (
     ACTIONS_SYSTEM,
     ACTIONS_USER_PROMPT,
@@ -72,9 +77,189 @@ def _extract_text(html: str, max_chars: int) -> str:
     return text[:max_chars]
 
 
+def _extract_structured_text(html: str, max_chars: int) -> tuple[str, bool]:
+    """Extract text from HTML preserving section structure as markdown."""
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "nav", "footer", "header"]):
+        tag.decompose()
+
+    heading_tags = {"h1", "h2", "h3", "h4"}
+    parts: list[str] = []
+    char_count = 0
+
+    for element in soup.body.descendants if soup.body else soup.descendants:
+        if char_count >= max_chars:
+            return "\n\n".join(parts)[:max_chars], True
+
+        if isinstance(element, Tag):
+            if element.name in heading_tags:
+                text = element.get_text(strip=True)
+                if text:
+                    parts.append(f"## {text}")
+                    char_count += len(text) + 4
+            elif element.name == "p":
+                text = element.get_text(separator=" ", strip=True)
+                if text:
+                    parts.append(text)
+                    char_count += len(text) + 2
+            elif element.name == "li":
+                text = element.get_text(separator=" ", strip=True)
+                if text:
+                    parts.append(f"- {text}")
+                    char_count += len(text) + 4
+
+    result = "\n\n".join(parts)
+    if len(result) > max_chars:
+        return result[:max_chars], True
+    return result, False
+
+
+def _build_section_index(text: str) -> list[dict]:
+    """Build a section index from structured markdown text."""
+    sections: list[dict] = []
+    blocks = text.split("\n\n")
+    current_offset = 0
+
+    for block in blocks:
+        if block.startswith("## "):
+            heading = block[3:].strip()
+            if sections:
+                sections[-1]["length"] = current_offset - sections[-1]["offset"]
+            sections.append({"heading": heading, "offset": current_offset})
+        current_offset += len(block) + 2  # +2 for \n\n separator
+
+    if sections:
+        sections[-1]["length"] = len(text) - sections[-1]["offset"]
+
+    return sections
+
+
+def _hash_text(text: str) -> str:
+    """Compute SHA-256 hash of policy text."""
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def find_relevant_sections(question: str, sections: list[dict], full_text: str, max_chars: int = 15000) -> str:
+    """Find sections most relevant to the user's question using keyword overlap."""
+    if not sections:
+        return full_text[:max_chars]
+
+    question_words = {w.lower() for w in re.findall(r"\w+", question) if len(w) > 1}
+
+    scored: list[tuple[float, dict]] = []
+    for section in sections:
+        heading_words = {w.lower() for w in re.findall(r"\w+", section["heading"]) if len(w) > 1}
+        overlap = len(question_words & heading_words)
+        if overlap > 0:
+            scored.append((overlap, section))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top_sections = scored[:3]
+
+    if not top_sections:
+        return full_text[:max_chars]
+
+    parts: list[str] = []
+    total = 0
+    for _, section in top_sections:
+        offset = section["offset"]
+        length = section.get("length", max_chars)
+        chunk = full_text[offset : offset + length]
+        if total + len(chunk) > max_chars:
+            chunk = chunk[: max_chars - total]
+        parts.append(chunk)
+        total += len(chunk)
+        if total >= max_chars:
+            break
+
+    return "\n\n".join(parts)
+
+
+async def get_or_create_policy_text(db: DBSession, source_url: str, text: str, was_truncated: bool) -> PolicyText:
+    """Get existing PolicyText by hash or create a new one."""
+    content_hash = _hash_text(text)
+    result = await db.execute(select(PolicyText).where(PolicyText.content_hash == content_hash))
+    existing = result.scalar_one_or_none()
+    if existing:
+        logger.info("PolicyText cache hit (hash=%s…)", content_hash[:12])
+        return existing
+
+    sections = _build_section_index(text)
+    policy_text = PolicyText(
+        content_hash=content_hash,
+        content=text,
+        char_count=len(text),
+        was_truncated=was_truncated,
+        sections_json=json.dumps(sections) if sections else None,
+        source_url=source_url,
+    )
+    db.add(policy_text)
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        result = await db.execute(select(PolicyText).where(PolicyText.content_hash == content_hash))
+        existing = result.scalar_one_or_none()
+        if existing:
+            logger.info("PolicyText race resolved (hash=%s…)", content_hash[:12])
+            return existing
+        raise
+    logger.info("PolicyText created (hash=%s…, %d chars, %d sections)", content_hash[:12], len(text), len(sections))
+    return policy_text
+
+
+BLOCKED_PAGE_MARKERS = [
+    "prove your humanity",
+    "complete the challenge",
+    "captcha",
+    "verify you are human",
+    "not a robot",
+    "access denied",
+    "enable javascript and cookies to continue",
+    "just a moment",  # Cloudflare
+    "checking your browser",  # Cloudflare
+    "attention required",  # Cloudflare
+    "please turn javascript on",
+    "ray id",  # Cloudflare block page
+    "please verify you are a human",
+    "one more step",
+    "security check",
+]
+
+GOOGLE_PAGE_MARKERS = [
+    "antes de continuar para a google",  # Google consent (Portuguese)
+    "before you continue to google",  # Google consent (English)
+    "fornecer e manter os serviços google",  # Google consent details
+    "a sua pesquisa",  # Google search results (Portuguese)
+    "your search -",  # Google search results (English)
+    "did not match any documents",
+    "não encontrou nenhum documento",
+    "manter os serviços google",
+]
+
+
+def _is_blocked_page(text: str) -> bool:
+    """Detect CAPTCHA challenges, bot blocks, and other access-denied pages."""
+    if not text or len(text.strip()) < 200:
+        return True
+    lower = text.lower()
+    matches = sum(1 for marker in BLOCKED_PAGE_MARKERS if marker in lower)
+    return matches >= 2
+
+
+def _is_google_page(text: str) -> bool:
+    """Detect Google consent, search, or error pages returned instead of cached content."""
+    if not text:
+        return False
+    lower = text.lower()
+    return any(marker in lower for marker in GOOGLE_PAGE_MARKERS)
+
+
 def _has_useful_content(html: str, min_length: int = 500) -> bool:
     """Check if HTML response has enough text to be useful, even on non-200 status."""
     text = _extract_text(html, 5000)
+    if _is_blocked_page(text):
+        return False
     return len(text) >= min_length
 
 
@@ -109,8 +294,62 @@ async def _search_web(query: str) -> str:
         return ""
 
 
-async def fetch_text(url: str, max_chars: int = 80000) -> str:
-    logger.info("=== fetch_text START for %s ===", url)
+def _clean_jina_text(text: str) -> str:
+    """Clean Jina Reader markdown output into our structured format.
+
+    Jina prepends metadata lines (Title:, URL Source:, Markdown Content:)
+    and uses standard markdown syntax that we need to normalize.
+    """
+    # Strip Jina metadata header lines
+    lines = text.split("\n")
+    content_start = 0
+    for i, line in enumerate(lines):
+        if line.startswith("Markdown Content:"):
+            content_start = i + 1
+            break
+        if line.startswith(("Title:", "URL Source:")):
+            content_start = i + 1
+
+    cleaned_lines = lines[content_start:]
+    result = "\n".join(cleaned_lines).strip()
+
+    # Convert markdown links [text](url) → text
+    result = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", result)
+
+    # Normalize heading levels: ###+ → ##
+    result = re.sub(r"^#{1,6}\s+", "## ", result, flags=re.MULTILINE)
+
+    # Convert markdown bullet markers (* or +) to our format (-)
+    result = re.sub(r"^[*+]\s+", "- ", result, flags=re.MULTILINE)
+
+    # Remove bold/italic markers
+    result = re.sub(r"\*{1,3}([^*]+)\*{1,3}", r"\1", result)
+
+    return result
+
+
+def _force_english_url(url: str) -> str:
+    """Append common English locale query parameters to request the English version."""
+    parsed = urlparse(url)
+    existing = parse_qs(parsed.query, keep_blank_values=True)
+    lang_params = {"hl": "en", "lang": "en", "locale": "en"}
+    for key, val in lang_params.items():
+        if key not in existing:
+            existing[key] = [val]
+    new_query = urlencode(existing, doseq=True)
+    return urlunparse(parsed._replace(query=new_query))
+
+
+async def fetch_text(url: str, max_chars: int = 80000, *, structured: bool = False) -> tuple[str, bool]:
+    """Fetch text from a URL. Returns (text, was_truncated).
+
+    When structured=True, preserves heading structure as markdown.
+    """
+    original_url = url
+    url = _force_english_url(url)
+    extract = _extract_structured_text if structured else lambda html, mc: (_extract_text(html, mc), False)
+
+    logger.info("=== fetch_text START for %s (structured=%s) ===", url, structured)
     headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
@@ -126,56 +365,70 @@ async def fetch_text(url: str, max_chars: int = 80000) -> str:
             logger.info("[Attempt 1] Direct fetch: %s", url)
             resp = await session.get(url)
             logger.info("[Attempt 1] Status=%d, content_length=%d", resp.status_code, len(resp.text))
-            # Accept non-200 responses if they have useful content
             has_content = _has_useful_content(resp.text)
             logger.info("[Attempt 1] has_useful_content=%s", has_content)
             if resp.status_code < 400 or has_content:
-                extracted = _extract_text(resp.text, max_chars)
-                logger.info("[Attempt 1] SUCCESS — extracted %d chars", len(extracted))
-                return extracted
-            logger.info("[Attempt 1] Raising for status %d", resp.status_code)
-            resp.raise_for_status()
+                text, truncated = extract(resp.text, max_chars)
+                if not _is_blocked_page(text) and len(text.strip()) >= 200:
+                    logger.info("[Attempt 1] SUCCESS — extracted %d chars", len(text))
+                    return text, truncated
+                logger.warning("[Attempt 1] Extracted text is blocked/empty, trying fallbacks")
+            else:
+                logger.info("[Attempt 1] Raising for status %d", resp.status_code)
+                resp.raise_for_status()
         except Exception as e:
             logger.warning("[Attempt 1] FAILED — %s: %s", type(e).__name__, e)
 
-        # Attempt 2: Google webcache
+        # Attempt 2: Jina Reader (renders JS, bypasses blocks — most reliable)
+        # Use original URL (without locale params) since Jina handles rendering itself
         try:
-            from urllib.parse import quote_plus
-
-            cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{quote_plus(url)}"
-            logger.info("[Attempt 2] Google cache: %s", cache_url)
-            resp = await session.get(cache_url)
-            logger.info("[Attempt 2] Status=%d", resp.status_code)
+            jina_url = f"https://r.jina.ai/{original_url}"
+            logger.info("[Attempt 2] Jina Reader: %s", jina_url)
+            async with AsyncSession(timeout=30) as jina_session:
+                resp = await jina_session.get(jina_url, headers={"Accept": "text/html"})
+            logger.info("[Attempt 2] Status=%d, content_length=%d", resp.status_code, len(resp.text))
             resp.raise_for_status()
-            logger.info("[Attempt 2] SUCCESS")
-            return _extract_text(resp.text, max_chars)
+            text = _clean_jina_text(resp.text)
+            if not _is_blocked_page(text) and len(text) >= 500:
+                logger.info("[Attempt 2] SUCCESS — %d chars", len(text))
+                truncated = len(text) > max_chars
+                return text[:max_chars], truncated
+            logger.warning("[Attempt 2] Content blocked or too short (%d chars)", len(text))
         except Exception as e2:
             logger.warning("[Attempt 2] FAILED — %s: %s", type(e2).__name__, e2)
 
-        # Attempt 3: archive.org latest snapshot
+        # Attempt 3: Google webcache
         try:
-            wb_url = f"https://web.archive.org/web/2/{url}"
-            logger.info("[Attempt 3] Wayback Machine: %s", wb_url)
-            resp = await session.get(wb_url)
+            from urllib.parse import quote_plus
+
+            cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{quote_plus(original_url)}"
+            logger.info("[Attempt 3] Google cache: %s", cache_url)
+            resp = await session.get(cache_url)
             logger.info("[Attempt 3] Status=%d", resp.status_code)
             resp.raise_for_status()
-            logger.info("[Attempt 3] SUCCESS")
-            return _extract_text(resp.text, max_chars)
+            text, truncated = extract(resp.text, max_chars)
+            if _is_google_page(text):
+                logger.warning("[Attempt 3] Got Google page instead of cached content, skipping")
+            elif not _is_blocked_page(text) and len(text.strip()) >= 200:
+                logger.info("[Attempt 3] SUCCESS")
+                return text, truncated
+            else:
+                logger.warning("[Attempt 3] Extracted text is blocked/empty, trying fallbacks")
         except Exception as e3:
             logger.warning("[Attempt 3] FAILED — %s: %s", type(e3).__name__, e3)
 
-        # Attempt 4: Jina Reader (renders JS, bypasses blocks)
+        # Attempt 4: archive.org latest snapshot
         try:
-            jina_url = f"https://r.jina.ai/{url}"
-            logger.info("[Attempt 4] Jina Reader: %s", jina_url)
-            resp = await session.get(jina_url, headers={"Accept": "text/html"})
-            logger.info("[Attempt 4] Status=%d, content_length=%d", resp.status_code, len(resp.text))
+            wb_url = f"https://web.archive.org/web/2/{original_url}"
+            logger.info("[Attempt 4] Wayback Machine: %s", wb_url)
+            resp = await session.get(wb_url)
+            logger.info("[Attempt 4] Status=%d", resp.status_code)
             resp.raise_for_status()
-            text = resp.text.strip()
-            if len(text) >= 500:
-                logger.info("[Attempt 4] SUCCESS — %d chars", len(text))
-                return text[:max_chars]
-            logger.warning("[Attempt 4] Content too short (%d chars)", len(text))
+            text, truncated = extract(resp.text, max_chars)
+            if not _is_blocked_page(text) and len(text.strip()) >= 200:
+                logger.info("[Attempt 4] SUCCESS")
+                return text, truncated
+            logger.warning("[Attempt 4] Extracted text is blocked/empty, trying fallbacks")
         except Exception as e4:
             logger.warning("[Attempt 4] FAILED — %s: %s", type(e4).__name__, e4)
 
@@ -307,7 +560,7 @@ def _normalize(data: dict) -> dict:
 async def find_privacy_policy_url(website_url: str) -> str | None:
     logger.info("Discovering privacy policy URL for %s", website_url)
     try:
-        homepage_text = await fetch_text(website_url, max_chars=5000)
+        homepage_text, _ = await fetch_text(website_url, max_chars=5000)
     except Exception:
         logger.warning("Could not fetch homepage for %s", website_url)
         return None
@@ -333,7 +586,7 @@ async def find_privacy_policy_url(website_url: str) -> str | None:
 async def analyze_policy(privacy_policy_url: str, service_name: str = "") -> dict:
     logger.info("Analyzing policy: %s", privacy_policy_url)
     try:
-        policy_text = await fetch_text(privacy_policy_url, max_chars=80000)
+        policy_text, was_truncated = await fetch_text(privacy_policy_url, max_chars=80000, structured=True)
     except Exception as e:
         logger.error("Failed to fetch policy %s: %s", privacy_policy_url, e)
         return _empty_result(f"Could not fetch privacy policy: {e}")
@@ -367,11 +620,12 @@ async def analyze_policy(privacy_policy_url: str, service_name: str = "") -> dic
 
     result = _normalize(data)
     result["policy_text"] = policy_text
+    result["was_truncated"] = was_truncated
     logger.info("Analysis complete for %s → grade=%s", privacy_policy_url, result["grade"])
     return result
 
 
-async def get_service_actions(service_name: str, website_url: str) -> list[dict]:
+async def get_service_actions(service_name: str, website_url: str, policy_url: str | None = None) -> list[dict]:
     """Discover privacy action links (delete account, download data, etc.) for a service."""
     logger.info("Discovering privacy actions for %s (%s)", service_name, website_url)
     try:
@@ -419,12 +673,23 @@ async def get_service_actions(service_name: str, website_url: str) -> list[dict]
 
         # Validate each action has required fields and URL is on service domain
         base_domain = domain.removeprefix("www.")
+        # Extract brand names for relaxed matching, e.g. "reddit" from "reddit.com"
+        # Use the second-level domain (SLD) as the brand name
+        domain_parts = base_domain.split(".")
+        brands = {domain_parts[-2] if len(domain_parts) >= 2 else domain_parts[0]}
+        # Also accept the policy URL's domain (e.g. YouTube uses google.com policy)
+        if policy_url:
+            policy_host = urlparse(policy_url).netloc.removeprefix("www.")
+            policy_parts = policy_host.split(".")
+            brands.add(policy_parts[-2] if len(policy_parts) >= 2 else policy_parts[0])
         validated = []
         for action in actions:
             if not all(k in action for k in ("label", "url", "category")):
                 continue
             action_host = urlparse(action["url"]).netloc.removeprefix("www.")
-            if not action_host.endswith(base_domain):
+            # Accept if action is on same domain OR its hostname contains a known brand
+            # e.g. "support.reddithelp.com" contains "reddit", "myaccount.google.com" contains "google"
+            if not (action_host.endswith(base_domain) or any(b in action_host for b in brands)):
                 logger.info("Skipping action with off-domain URL: %s", action["url"])
                 continue
             validated.append(action)

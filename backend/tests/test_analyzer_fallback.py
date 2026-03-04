@@ -9,7 +9,7 @@ from app.analyzer import LLMUnavailableError, analyze_policy, find_privacy_polic
 
 @pytest.mark.asyncio
 class TestLLMFallback:
-    @patch("app.analyzer.fetch_text", new_callable=AsyncMock, return_value="Policy text here")
+    @patch("app.analyzer.fetch_text", new_callable=AsyncMock, return_value=("Policy text here", False))
     @patch(
         "app.analyzer.litellm.acompletion",
         new_callable=AsyncMock,
@@ -21,7 +21,7 @@ class TestLLMFallback:
         assert result["grade"] != "N/A"
         assert len(result["red_flags"]) > 0
 
-    @patch("app.analyzer.fetch_text", new_callable=AsyncMock, return_value="Policy text here")
+    @patch("app.analyzer.fetch_text", new_callable=AsyncMock, return_value=("Policy text here", False))
     @patch(
         "app.analyzer.litellm.acompletion",
         new_callable=AsyncMock,

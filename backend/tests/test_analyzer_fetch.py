@@ -26,8 +26,9 @@ class TestFetchText:
         mock_session.__aexit__ = AsyncMock(return_value=False)
         mock_session_cls.return_value = mock_session
 
-        result = await fetch_text("https://example.com/privacy")
-        assert "Privacy policy content" in result
+        text, truncated = await fetch_text("https://example.com/privacy")
+        assert "Privacy policy content" in text
+        assert truncated is False
 
     @patch("app.analyzer.AsyncSession")
     async def test_fallback_to_google_cache(self, mock_session_cls):
@@ -44,8 +45,8 @@ class TestFetchText:
         mock_session.__aexit__ = AsyncMock(return_value=False)
         mock_session_cls.return_value = mock_session
 
-        result = await fetch_text("https://example.com/privacy")
-        assert "Cached policy text" in result
+        text, truncated = await fetch_text("https://example.com/privacy")
+        assert "Cached policy text" in text
         assert mock_session.get.call_count == 2
 
     @patch("app.analyzer.AsyncSession")
@@ -77,8 +78,8 @@ class TestFetchText:
         mock_session.__aexit__ = AsyncMock(return_value=False)
         mock_session_cls.return_value = mock_session
 
-        result = await fetch_text("https://example.com/privacy")
-        assert "useful response" in result
+        text, truncated = await fetch_text("https://example.com/privacy")
+        assert "useful response" in text
 
     @patch("app.analyzer.AsyncSession")
     async def test_jina_fallback_success(self, mock_session_cls):
@@ -95,5 +96,5 @@ class TestFetchText:
         mock_session.__aexit__ = AsyncMock(return_value=False)
         mock_session_cls.return_value = mock_session
 
-        result = await fetch_text("https://example.com/privacy")
-        assert "Jina rendered content" in result
+        text, truncated = await fetch_text("https://example.com/privacy")
+        assert "Jina rendered content" in text

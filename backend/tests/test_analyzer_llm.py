@@ -11,7 +11,7 @@ class TestFindPrivacyPolicyUrl:
     @patch("app.analyzer._llm_call", new_callable=AsyncMock)
     @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
     async def test_found(self, mock_fetch, mock_llm):
-        mock_fetch.return_value = "Homepage text with privacy link"
+        mock_fetch.return_value = ("Homepage text with privacy link", False)
         mock_llm.return_value = "https://example.com/privacy"
         result = await find_privacy_policy_url("https://example.com")
         assert result == "https://example.com/privacy"
@@ -19,7 +19,7 @@ class TestFindPrivacyPolicyUrl:
     @patch("app.analyzer._llm_call", new_callable=AsyncMock)
     @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
     async def test_not_found(self, mock_fetch, mock_llm):
-        mock_fetch.return_value = "Homepage text"
+        mock_fetch.return_value = ("Homepage text", False)
         mock_llm.return_value = "NOT_FOUND"
         result = await find_privacy_policy_url("https://example.com")
         assert result is None
@@ -27,7 +27,7 @@ class TestFindPrivacyPolicyUrl:
     @patch("app.analyzer._llm_call", new_callable=AsyncMock)
     @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
     async def test_non_http_result(self, mock_fetch, mock_llm):
-        mock_fetch.return_value = "Homepage text"
+        mock_fetch.return_value = ("Homepage text", False)
         mock_llm.return_value = "no-url-here"
         result = await find_privacy_policy_url("https://example.com")
         assert result is None
@@ -43,7 +43,7 @@ class TestAnalyzePolicy:
     @patch("app.analyzer._llm_call", new_callable=AsyncMock)
     @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
     async def test_valid_json(self, mock_fetch, mock_llm):
-        mock_fetch.return_value = "Privacy policy text..."
+        mock_fetch.return_value = ("Privacy policy text...", False)
         mock_llm.return_value = json.dumps(
             {
                 "categories": {
@@ -67,7 +67,7 @@ class TestAnalyzePolicy:
     @patch("app.analyzer._llm_call", new_callable=AsyncMock)
     @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
     async def test_markdown_fenced_json(self, mock_fetch, mock_llm):
-        mock_fetch.return_value = "Policy text"
+        mock_fetch.return_value = ("Policy text", False)
         raw_json = json.dumps(
             {
                 "categories": {
@@ -90,7 +90,7 @@ class TestAnalyzePolicy:
     @patch("app.analyzer._llm_call", new_callable=AsyncMock)
     @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
     async def test_unparseable_response(self, mock_fetch, mock_llm):
-        mock_fetch.return_value = "Policy text"
+        mock_fetch.return_value = ("Policy text", False)
         mock_llm.return_value = "This is not JSON at all"
         result = await analyze_policy("https://example.com/privacy")
         assert result["grade"] == "N/A"
@@ -149,6 +149,51 @@ class TestGetServiceActions:
         result = await get_service_actions("Example", "https://www.example.com")
         assert len(result) == 1
         assert result[0]["label"] == "Privacy Settings"
+
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock)
+    @patch("app.analyzer._search_web", new_callable=AsyncMock)
+    async def test_affiliated_domain_accepted(self, mock_search, mock_llm):
+        """Affiliated domains (e.g. reddithelp.com for reddit.com) should be accepted."""
+        mock_search.return_value = "Search results"
+        mock_llm.return_value = json.dumps(
+            {
+                "actions": [
+                    {
+                        "label": "Request Data",
+                        "url": "https://support.reddithelp.com/hc/data-request",
+                        "category": "data_access",
+                    },
+                    {
+                        "label": "Privacy Dashboard",
+                        "url": "https://myaccount.google.com/data-and-privacy",
+                        "category": "privacy_settings",
+                    },
+                    {
+                        "label": "Unrelated Site",
+                        "url": "https://www.malicious.com/phish",
+                        "category": "deletion",
+                    },
+                ]
+            }
+        )
+        # "reddit" brand should match "reddithelp.com"
+        result = await get_service_actions("Reddit", "https://www.reddit.com")
+        assert len(result) == 1
+        assert result[0]["label"] == "Request Data"
+
+        # "google" brand should match "myaccount.google.com"
+        result = await get_service_actions("Google", "https://www.google.com")
+        assert len(result) == 1
+        assert result[0]["label"] == "Privacy Dashboard"
+
+        # YouTube uses Google's policy URL — google.com actions should be accepted
+        result = await get_service_actions(
+            "YouTube",
+            "https://www.youtube.com",
+            policy_url="https://policies.google.com/privacy",
+        )
+        assert len(result) == 1
+        assert result[0]["label"] == "Privacy Dashboard"
 
     @patch("app.analyzer._search_web", new_callable=AsyncMock, return_value="")
     async def test_no_search_results(self, mock_search):
