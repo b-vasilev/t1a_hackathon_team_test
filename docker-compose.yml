@@ -9,9 +9,16 @@ services:
       - LLM_MODEL=${LLM_MODEL:-anthropic/claude-haiku-4-5-20251001}
       - DATABASE_URL=sqlite:////data/policylens.db
     volumes:
-      - sqlite_data:/data
+      - ./data:/data
     networks:
       - app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
 
   frontend:
     build: ./frontend
@@ -20,12 +27,11 @@ services:
     environment:
       - BACKEND_URL=http://backend:8000
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - app
-
-volumes:
-  sqlite_data: {}
+    restart: unless-stopped
 
 networks:
   app:

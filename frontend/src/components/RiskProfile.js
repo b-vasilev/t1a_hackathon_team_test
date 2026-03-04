@@ -56,7 +56,7 @@ function ServiceCard({ result }) {
   const hasDetails =
     result.red_flags?.length > 0 ||
     result.warnings?.length > 0 ||
-    result.clean_items?.length > 0;
+    result.positives?.length > 0;
 
   return (
     <div className="bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col gap-3">
@@ -106,11 +106,11 @@ function ServiceCard({ result }) {
                   </ul>
                 </div>
               )}
-              {result.clean_items?.length > 0 && (
+              {result.positives?.length > 0 && (
                 <div>
                   <p className="font-medium text-green-400 mb-1">✅ Positives</p>
                   <ul className="space-y-1">
-                    {result.clean_items.map((c, i) => (
+                    {result.positives.map((c, i) => (
                       <li key={i} className="text-slate-300 flex gap-2">
                         <span className="text-green-500 shrink-0">•</span>{c}
                       </li>
@@ -131,7 +131,7 @@ export default function RiskProfile({ overallGrade, results }) {
 
   const totalRedFlags = results.reduce((n, r) => n + (r.red_flags?.length || 0), 0);
   const totalWarnings = results.reduce((n, r) => n + (r.warnings?.length || 0), 0);
-  const totalClean = results.reduce((n, r) => n + (r.clean_items?.length || 0), 0);
+  const totalClean = results.reduce((n, r) => n + (r.positives?.length || 0), 0);
 
   return (
     <div className="flex flex-col gap-6">
