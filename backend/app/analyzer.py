@@ -492,13 +492,19 @@ async def _llm_call(system: str, user: str, max_tokens: int = 1024) -> str:
                 delay = _RETRY_DELAYS[attempt]
                 logger.warning(
                     "LLM transient error (attempt %d/%d), retrying in %ds: %s: %s",
-                    attempt + 1, _MAX_RETRIES, delay, type(e).__name__, e,
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
+                    type(e).__name__,
+                    e,
                 )
                 await asyncio.sleep(delay)
             else:
                 logger.error(
                     "LLM API unreachable after %d attempts: %s: %s",
-                    _MAX_RETRIES, type(e).__name__, e,
+                    _MAX_RETRIES,
+                    type(e).__name__,
+                    e,
                 )
         except Exception as e:
             logger.error("LLM API error (non-retryable): %s: %s", type(e).__name__, e)

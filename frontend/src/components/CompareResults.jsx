@@ -115,7 +115,12 @@ export default function CompareResults({ resultA, resultB, onReset }) {
   const gpaA = gradeGpa(resultA.grade);
   const gpaB = gradeGpa(resultB.grade);
 
-  const winnerName = gpaA > gpaB ? resultA.name : gpaB > gpaA ? resultB.name : null;
+  let winnerName = null;
+  if (gpaA > gpaB) {
+    winnerName = resultA.name;
+  } else if (gpaB > gpaA) {
+    winnerName = resultB.name;
+  }
 
   return (
     <div className="flex flex-col gap-6" style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
@@ -216,26 +221,22 @@ export default function CompareResults({ resultA, resultB, onReset }) {
               <div
                 data-testid={`cat-a-${cat.key}`}
                 className="px-3 py-2 flex justify-center items-center"
-                style={aWins ? {
-                  borderLeft: '3px solid var(--pl-grade-a)',
-                  background: 'rgba(0,230,118,0.06)',
-                } : bWins ? {
-                  borderLeft: '3px solid transparent',
-                  background: 'rgba(255,23,68,0.04)',
-                } : {}}
+                style={(() => {
+                  if (aWins) { return { borderLeft: '3px solid var(--pl-grade-a)', background: 'rgba(0,230,118,0.06)' }; }
+                  if (bWins) { return { borderLeft: '3px solid transparent', background: 'rgba(255,23,68,0.04)' }; }
+                  return {};
+                })()}
               >
                 {gradeA ? <GradeBadge grade={gradeA} /> : <span style={{ color: 'var(--pl-text-dim)', fontSize: '0.75rem' }}>—</span>}
               </div>
               <div
                 data-testid={`cat-b-${cat.key}`}
                 className="px-3 py-2 flex justify-center items-center"
-                style={bWins ? {
-                  borderLeft: '3px solid var(--pl-grade-a)',
-                  background: 'rgba(0,230,118,0.06)',
-                } : aWins ? {
-                  borderLeft: '3px solid transparent',
-                  background: 'rgba(255,23,68,0.04)',
-                } : {}}
+                style={(() => {
+                  if (bWins) { return { borderLeft: '3px solid var(--pl-grade-a)', background: 'rgba(0,230,118,0.06)' }; }
+                  if (aWins) { return { borderLeft: '3px solid transparent', background: 'rgba(255,23,68,0.04)' }; }
+                  return {};
+                })()}
               >
                 {gradeB ? <GradeBadge grade={gradeB} /> : <span style={{ color: 'var(--pl-text-dim)', fontSize: '0.75rem' }}>—</span>}
               </div>
@@ -260,7 +261,7 @@ export default function CompareResults({ resultA, resultB, onReset }) {
                     <ul className="space-y-1">
                       {r[field].map((item, i) => (
                         <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--pl-text-muted)' }}>
-                          <span style={{ color: colors[field] }} className="shrink-0">&#x25CF;</span>{item}
+                          <span style={{ color: colors[field] }} className="shrink-0">&#x25CF;</span>{typeof item === 'object' ? item.text : item}
                         </li>
                       ))}
                     </ul>

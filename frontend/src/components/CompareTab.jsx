@@ -28,7 +28,7 @@ function saveToSession(key, value) {
   sessionStorage.setItem(key, JSON.stringify(value));
 }
 
-export default function CompareTab({ services = [], parentHydrated = false }) {
+export default function CompareTab({ services = [], parentHydrated: _parentHydrated = false }) {
   const [selectionOrder, setSelectionOrder] = useState([]);
   const [customServices, setCustomServices] = useState([]);
   const [results, setResults] = useState(null);

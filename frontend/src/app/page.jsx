@@ -94,7 +94,7 @@ export default function Home() {
     setResults(loadFromSession(SS_KEYS.results, []));
     setOverallGrade(loadFromSession(SS_KEYS.overallGrade, null));
     setActiveTab(loadFromSession(SS_KEYS.activeTab, 'analyze'));
-    setNoSudoku(!!sessionStorage.getItem('pl_no_sudoku'));
+    setNoSudoku(Boolean(sessionStorage.getItem('pl_no_sudoku')));
     setHydrated(true);
   }, []);
 
