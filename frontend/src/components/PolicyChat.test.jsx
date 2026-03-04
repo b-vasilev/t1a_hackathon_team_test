@@ -138,4 +138,81 @@ describe("PolicyChat", () => {
       expect(screen.getByText("Network error")).toBeInTheDocument();
     });
   });
+
+  it("submits on Enter key press", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ answer: "Answer via Enter." }),
+    });
+
+    render(<PolicyChat serviceId={1} />);
+    const input = screen.getByPlaceholderText("Ask about this policy...");
+    fireEvent.change(input, { target: { value: "Enter question" } });
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/chat", expect.any(Object));
+    });
+  });
+
+  it("does not submit on Shift+Enter", () => {
+    global.fetch = vi.fn();
+    render(<PolicyChat serviceId={1} />);
+    const input = screen.getByPlaceholderText("Ask about this policy...");
+    fireEvent.change(input, { target: { value: "No submit" } });
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("shows error when API returns non-ok response", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      json: () => Promise.resolve({ detail: "Server error" }),
+    });
+
+    render(<PolicyChat serviceId={1} />);
+    const input = screen.getByPlaceholderText("Ask about this policy...");
+    fireEvent.change(input, { target: { value: "Bad request" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Server error")).toBeInTheDocument();
+    });
+  });
+
+  it("retries last message when retry button clicked", async () => {
+    // First call succeeds, but we'll set up error then retry
+    global.fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Temporary error"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ answer: "Retry succeeded!" }),
+      });
+
+    render(<PolicyChat serviceId={1} />);
+    const input = screen.getByPlaceholderText("Ask about this policy...");
+    fireEvent.change(input, { target: { value: "Retry test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    // Wait for error to appear
+    await waitFor(() => {
+      expect(screen.getByText("Temporary error")).toBeInTheDocument();
+    });
+
+    // Click retry button
+    const retryBtn = screen.getByText("Retry");
+    fireEvent.click(retryBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Retry succeeded!")).toBeInTheDocument();
+    });
+  });
+
+  it("does not send empty messages", () => {
+    global.fetch = vi.fn();
+    render(<PolicyChat serviceId={1} />);
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
 });

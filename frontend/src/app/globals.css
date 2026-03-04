@@ -139,6 +139,17 @@ body::before {
   }
 }
 
+@keyframes chevronBounce {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(8px);
+    opacity: 1;
+  }
+}
+
 /* ── Stagger Children ── */
 .stagger-children > * {
   opacity: 0;
@@ -666,5 +677,10 @@ body::before {
     width: 100vw;
     max-height: 100vh;
     border-radius: 0;
+  }
+
+  .hero-steps-grid {
+    grid-template-columns: 1fr !important;
+    max-width: 320px !important;
   }
 }

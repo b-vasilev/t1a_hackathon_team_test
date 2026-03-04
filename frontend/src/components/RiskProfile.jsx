@@ -178,159 +178,283 @@ function ServiceCard({ result, onRescan, isLoading }) {
         </div>
       </div>
 
-      {hasDetails && (
+      {/* ── Unified Action Bar ── */}
+      {(hasDetails || (result.grade && result.grade !== 'N/A')) && (
         <>
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-xs self-start transition-colors"
-            style={{ color: 'var(--pl-accent)', fontFamily: 'var(--font-mono)', outline: 'none' }}
-            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-            onFocus={(e) => { e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.opacity = '0.9'; }}
-            onBlur={(e) => { e.currentTarget.style.textDecoration = 'none'; e.currentTarget.style.opacity = '1'; }}
+          <div
+            className="flex items-center justify-between gap-2 pt-2 mt-1 flex-wrap"
+            style={{ borderTop: '1px solid var(--pl-border)' }}
           >
-            {expanded ? '[ - ] Hide details' : '[ + ] Show details'}
-          </button>
+            {/* Left: Details toggle */}
+            {hasDetails && (
+              <button
+                onClick={() => setExpanded(!expanded)}
+                title={expanded ? 'Hide detailed findings' : 'Show detailed findings'}
+                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 cursor-pointer transition-all duration-200"
+                style={{
+                  fontSize: '0.75rem',
+                  fontFamily: 'var(--font-mono)',
+                  outline: 'none',
+                  color: expanded ? 'var(--pl-bg)' : 'var(--pl-accent)',
+                  background: expanded ? 'var(--pl-accent)' : 'rgba(0, 229, 255, 0.08)',
+                  border: `1px solid ${expanded ? 'var(--pl-accent)' : 'rgba(0, 229, 255, 0.2)'}`,
+                }}
+                onMouseEnter={(e) => {
+                  if (!expanded) {
+                    e.currentTarget.style.background = 'rgba(0, 229, 255, 0.15)';
+                    e.currentTarget.style.borderColor = 'rgba(0, 229, 255, 0.4)';
+                  } else {
+                    e.currentTarget.style.opacity = '0.85';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!expanded) {
+                    e.currentTarget.style.background = 'rgba(0, 229, 255, 0.08)';
+                    e.currentTarget.style.borderColor = 'rgba(0, 229, 255, 0.2)';
+                  } else {
+                    e.currentTarget.style.opacity = '1';
+                  }
+                }}
+              >
+                <svg
+                  width="12" height="12" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  style={{
+                    transition: 'transform 0.25s ease',
+                    transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                  }}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+                Details
+              </button>
+            )}
 
-          <div className={`details-collapse ${expanded ? 'open' : ''}`}>
-            <div className="flex flex-col gap-3 text-sm pt-1">
-              {result.actions?.length > 0 && (
-                <div>
-                  <p className="font-medium mb-2" style={{ color: 'var(--pl-accent)' }}>What You Can Do</p>
-                  <div className="space-y-2">
-                    {result.actions.map((action, i) => (
-                      <div
-                        key={i}
-                        className="rounded-lg px-3 py-2"
-                        style={{
-                          background: 'rgba(0, 210, 255, 0.06)',
-                          border: '1px solid rgba(0, 210, 255, 0.15)',
-                        }}
-                      >
-                        <div className="flex items-start gap-2">
-                          <span className="text-base shrink-0 mt-0.5">{actionCategoryIcon(action.category)}</span>
-                          <div className="flex-1 min-w-0">
-                            <span className="font-medium text-sm" style={{ color: 'var(--pl-text)' }}>{action.label}</span>
-                            {action.description && (
-                              <p className="text-xs mt-0.5" style={{ color: 'var(--pl-text-muted)' }}>{action.description}</p>
-                            )}
-                            <div className="flex gap-3 mt-1.5">
-                              <a
-                                href={action.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs hover:underline"
-                                style={{ color: 'var(--pl-accent)', fontFamily: 'var(--font-mono)' }}
-                              >Go to page &rarr;</a>
-                              {action.source && (
+            {/* Right: Ask / Policy / Report */}
+            {result.grade && result.grade !== 'N/A' && (
+              <div className="flex items-center gap-1.5 ml-auto">
+                <button
+                  onClick={() => setChatOpen(!chatOpen)}
+                  title={chatOpen ? 'Close chat' : 'Ask questions about this policy'}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 cursor-pointer transition-all duration-200"
+                  style={{
+                    fontSize: '0.75rem',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none',
+                    color: chatOpen ? 'var(--pl-bg)' : 'var(--pl-text-muted)',
+                    background: chatOpen ? 'var(--pl-accent)' : 'transparent',
+                    border: `1px solid ${chatOpen ? 'var(--pl-accent)' : 'transparent'}`,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!chatOpen) {
+                      e.currentTarget.style.color = 'var(--pl-accent)';
+                      e.currentTarget.style.background = 'rgba(0, 229, 255, 0.08)';
+                      e.currentTarget.style.borderColor = 'rgba(0, 229, 255, 0.2)';
+                    } else {
+                      e.currentTarget.style.opacity = '0.85';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!chatOpen) {
+                      e.currentTarget.style.color = 'var(--pl-text-muted)';
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.borderColor = 'transparent';
+                    } else {
+                      e.currentTarget.style.opacity = '1';
+                    }
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  Ask
+                </button>
+
+                <button
+                  onClick={() => setViewerOpen(true)}
+                  title="View the full privacy policy"
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 cursor-pointer transition-all duration-200"
+                  style={{
+                    fontSize: '0.75rem',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none',
+                    color: 'var(--pl-text-muted)',
+                    background: 'transparent',
+                    border: '1px solid transparent',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = 'var(--pl-accent)';
+                    e.currentTarget.style.background = 'rgba(0, 229, 255, 0.08)';
+                    e.currentTarget.style.borderColor = 'rgba(0, 229, 255, 0.2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--pl-text-muted)';
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.borderColor = 'transparent';
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                  Policy
+                </button>
+
+                <button
+                  onClick={handleDownloadPdf}
+                  disabled={generating}
+                  title={generating ? 'Generating PDF report...' : 'Download PDF report'}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 cursor-pointer transition-all duration-200"
+                  style={{
+                    fontSize: '0.75rem',
+                    fontFamily: 'var(--font-mono)',
+                    outline: 'none',
+                    color: 'var(--pl-text-muted)',
+                    background: 'transparent',
+                    border: '1px solid transparent',
+                    opacity: generating ? 0.6 : 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!generating) {
+                      e.currentTarget.style.color = 'var(--pl-accent)';
+                      e.currentTarget.style.background = 'rgba(0, 229, 255, 0.08)';
+                      e.currentTarget.style.borderColor = 'rgba(0, 229, 255, 0.2)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = 'var(--pl-text-muted)';
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.borderColor = 'transparent';
+                  }}
+                >
+                  {generating ? (
+                    <svg
+                      width="12" height="12" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ animation: 'xraySpin 1s linear infinite' }}
+                    >
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                  )}
+                  {generating ? 'Report\u2026' : 'Report'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Details panel */}
+          {hasDetails && (
+            <div className={`details-collapse ${expanded ? 'open' : ''}`}>
+              <div className="flex flex-col gap-3 text-sm pt-1">
+                {result.actions?.length > 0 && (
+                  <div>
+                    <p className="font-medium mb-2" style={{ color: 'var(--pl-accent)' }}>What You Can Do</p>
+                    <div className="space-y-2">
+                      {result.actions.map((action, i) => (
+                        <div
+                          key={i}
+                          className="rounded-lg px-3 py-2"
+                          style={{
+                            background: 'rgba(0, 210, 255, 0.06)',
+                            border: '1px solid rgba(0, 210, 255, 0.15)',
+                          }}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className="text-base shrink-0 mt-0.5">{actionCategoryIcon(action.category)}</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium text-sm" style={{ color: 'var(--pl-text)' }}>{action.label}</span>
+                              {action.description && (
+                                <p className="text-xs mt-0.5" style={{ color: 'var(--pl-text-muted)' }}>{action.description}</p>
+                              )}
+                              <div className="flex gap-3 mt-1.5">
                                 <a
-                                  href={action.source}
+                                  href={action.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-xs hover:underline"
-                                  style={{ color: 'var(--pl-text-muted)', fontFamily: 'var(--font-mono)' }}
-                                >How-to guide &rarr;</a>
-                              )}
+                                  style={{ color: 'var(--pl-accent)', fontFamily: 'var(--font-mono)' }}
+                                >Go to page &rarr;</a>
+                                {action.source && (
+                                  <a
+                                    href={action.source}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs hover:underline"
+                                    style={{ color: 'var(--pl-text-muted)', fontFamily: 'var(--font-mono)' }}
+                                  >How-to guide &rarr;</a>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-              {result.red_flags?.length > 0 && (
-                <div>
-                  <p className="font-medium mb-1" style={{ color: 'var(--pl-grade-f)' }}>Red Flags</p>
-                  <ul className="space-y-1">
-                    {result.red_flags.map((f, i) => (
-                      <li key={i} className="flex gap-2" style={{ color: 'var(--pl-text-muted)' }}>
-                        <span style={{ color: 'var(--pl-grade-f)' }} className="shrink-0">&#x25CF;</span>{typeof f === 'object' ? f.text : f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {result.warnings?.length > 0 && (
-                <div>
-                  <p className="font-medium mb-1" style={{ color: 'var(--pl-grade-c)' }}>Warnings</p>
-                  <ul className="space-y-1">
-                    {result.warnings.map((w, i) => (
-                      <li key={i} className="flex gap-2" style={{ color: 'var(--pl-text-muted)' }}>
-                        <span style={{ color: 'var(--pl-grade-c)' }} className="shrink-0">&#x25CF;</span>{typeof w === 'object' ? w.text : w}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {result.positives?.length > 0 && (
-                <div>
-                  <p className="font-medium mb-1" style={{ color: 'var(--pl-grade-a)' }}>Positives</p>
-                  <ul className="space-y-1">
-                    {result.positives.map((c, i) => (
-                      <li key={i} className="flex gap-2" style={{ color: 'var(--pl-text-muted)' }}>
-                        <span style={{ color: 'var(--pl-grade-a)' }} className="shrink-0">&#x25CF;</span>{typeof c === 'object' ? c.text : c}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                )}
+                {result.red_flags?.length > 0 && (
+                  <div>
+                    <p className="font-medium mb-1" style={{ color: 'var(--pl-grade-f)' }}>Red Flags</p>
+                    <ul className="space-y-1">
+                      {result.red_flags.map((f, i) => (
+                        <li key={i} className="flex gap-2" style={{ color: 'var(--pl-text-muted)' }}>
+                          <span style={{ color: 'var(--pl-grade-f)' }} className="shrink-0">&#x25CF;</span>{typeof f === 'object' ? f.text : f}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {result.warnings?.length > 0 && (
+                  <div>
+                    <p className="font-medium mb-1" style={{ color: 'var(--pl-grade-c)' }}>Warnings</p>
+                    <ul className="space-y-1">
+                      {result.warnings.map((w, i) => (
+                        <li key={i} className="flex gap-2" style={{ color: 'var(--pl-text-muted)' }}>
+                          <span style={{ color: 'var(--pl-grade-c)' }} className="shrink-0">&#x25CF;</span>{typeof w === 'object' ? w.text : w}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {result.positives?.length > 0 && (
+                  <div>
+                    <p className="font-medium mb-1" style={{ color: 'var(--pl-grade-a)' }}>Positives</p>
+                    <ul className="space-y-1">
+                      {result.positives.map((c, i) => (
+                        <li key={i} className="flex gap-2" style={{ color: 'var(--pl-text-muted)' }}>
+                          <span style={{ color: 'var(--pl-grade-a)' }} className="shrink-0">&#x25CF;</span>{typeof c === 'object' ? c.text : c}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </>
-      )}
+          )}
 
-      {result.grade && result.grade !== 'N/A' && (
-        <>
-          <div className="flex gap-3 flex-wrap">
-            <button
-              onClick={() => setChatOpen(!chatOpen)}
-              className="text-xs self-start transition-colors"
-              style={{ color: 'var(--pl-accent)', fontFamily: 'var(--font-mono)', outline: 'none' }}
-              onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
-              onFocus={(e) => { e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.opacity = '0.9'; }}
-              onBlur={(e) => { e.currentTarget.style.textDecoration = 'none'; e.currentTarget.style.opacity = '1'; }}
-            >
-              {chatOpen ? '[ x ] Close chat' : '[ ? ] Ask about this policy'}
-            </button>
-            <button
-              onClick={() => setViewerOpen(true)}
-              className="text-xs self-start transition-colors"
-              style={{ color: 'var(--pl-text-muted)', fontFamily: 'var(--font-mono)', outline: 'none' }}
-              onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.color = 'var(--pl-accent)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--pl-text-muted)'; }}
-            >
-              [ doc ] View full policy
-            </button>
-            <button
-              onClick={handleDownloadPdf}
-              disabled={generating}
-              className="text-xs transition-colors cursor-pointer"
-              style={{
-                color: 'var(--pl-text-muted)',
-                fontFamily: 'var(--font-mono)',
-                outline: 'none',
-                opacity: generating ? 0.5 : 1,
-              }}
-              onMouseEnter={(e) => { if (!generating) { e.currentTarget.style.color = 'var(--pl-accent)'; } }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--pl-text-muted)'; }}
-            >
-              {generating ? '[ ... ] Generating...' : '[ pdf ] Download report'}
-            </button>
-          </div>
+          {/* Chat panel */}
+          {result.grade && result.grade !== 'N/A' && (
+            <>
+              <div className={`details-collapse ${chatOpen ? 'open' : ''}`}>
+                {chatOpen && <PolicyChat serviceId={result.service_id} />}
+              </div>
 
-          <div className={`details-collapse ${chatOpen ? 'open' : ''}`}>
-            {chatOpen && <PolicyChat serviceId={result.service_id} />}
-          </div>
-
-          {viewerOpen && (
-            <PolicyViewer
-              serviceId={result.service_id}
-              serviceName={result.name}
-              grade={result.grade}
-              onClose={() => setViewerOpen(false)}
-            />
+              {viewerOpen && (
+                <PolicyViewer
+                  serviceId={result.service_id}
+                  serviceName={result.name}
+                  grade={result.grade}
+                  onClose={() => setViewerOpen(false)}
+                />
+              )}
+            </>
           )}
         </>
       )}

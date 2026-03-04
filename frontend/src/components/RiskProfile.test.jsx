@@ -82,7 +82,7 @@ describe("RiskProfile", () => {
 
   it("expands details on click", () => {
     render(<RiskProfile overallGrade="B" results={mockResults} />);
-    const showButtons = screen.getAllByText(/Show details/);
+    const showButtons = screen.getAllByTitle(/Show detailed findings/);
     fireEvent.click(showButtons[0]);
     expect(
       screen.getByText("Shares data with advertisers")
@@ -93,7 +93,7 @@ describe("RiskProfile", () => {
 
   it("shows actions when expanded", () => {
     render(<RiskProfile overallGrade="B" results={mockResults} />);
-    const showButtons = screen.getAllByText(/Show details/);
+    const showButtons = screen.getAllByTitle(/Show detailed findings/);
     fireEvent.click(showButtons[0]);
     expect(screen.getByText("Delete Account")).toBeInTheDocument();
     expect(screen.getByText("What You Can Do")).toBeInTheDocument();
@@ -131,5 +131,81 @@ describe("RiskProfile", () => {
     render(<RiskProfile overallGrade="B" results={mockResultsWithFlag} />);
     expect(screen.getByTestId("mock-banner")).toBeInTheDocument();
     expect(screen.getByText(/temporarily unavailable/)).toBeInTheDocument();
+  });
+
+  it("renders grade badges for all grade letters", () => {
+    const grades = ["A+", "B", "C-", "D", "F", "N/A"];
+    for (const grade of grades) {
+      const result = { ...mockResults[0], grade };
+      const { unmount } = render(
+        <RiskProfile overallGrade={grade} results={[result]} />
+      );
+      expect(screen.getAllByText(grade).length).toBeGreaterThanOrEqual(1);
+      unmount();
+    }
+  });
+
+  it("toggles chat open and close", () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+
+    // Chat button has title "Ask questions about this policy"
+    const chatBtns = screen.getAllByTitle(/Ask questions about this policy/);
+    fireEvent.click(chatBtns[0]);
+    expect(screen.getAllByTitle("Close chat").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getAllByTitle("Close chat")[0]);
+    expect(screen.getAllByTitle(/Ask questions about this policy/).length).toBeGreaterThan(0);
+  });
+
+  it("shows View full policy button", () => {
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    expect(screen.getAllByTitle("View the full privacy policy").length).toBeGreaterThan(0);
+  });
+
+  it("shows PDF download button", () => {
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    expect(screen.getAllByTitle("Download PDF report").length).toBeGreaterThan(0);
+  });
+
+  it("calls onRescanService when rescan button clicked", () => {
+    const onRescanService = vi.fn();
+    render(
+      <RiskProfile
+        overallGrade="B"
+        results={mockResults}
+        onRescanService={onRescanService}
+        isLoading={false}
+      />
+    );
+    const rescanButtons = screen.getAllByTitle("Rescan this service");
+    fireEvent.click(rescanButtons[0]);
+    expect(onRescanService).toHaveBeenCalledWith(1);
+  });
+
+  it("collapses details when clicked again", () => {
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    const showButtons = screen.getAllByTitle(/Show detailed findings/);
+    fireEvent.click(showButtons[0]);
+    expect(
+      screen.getByText("Shares data with advertisers")
+    ).toBeInTheDocument();
+
+    // Click details button again (now has "Hide detailed findings" title)
+    const hideButton = screen.getAllByTitle(/Hide detailed findings/)[0];
+    fireEvent.click(hideButton);
+    // Content uses CSS collapse animation, so element stays in DOM but container loses 'open' class
+    const collapseDiv = screen.getByText("Shares data with advertisers").closest(".details-collapse");
+    expect(collapseDiv).not.toHaveClass("open");
+  });
+
+  it("renders results with different stripe colors based on grade", () => {
+    const results = [
+      { ...mockResults[0], grade: "A+" },
+      { ...mockResults[1], grade: "F" },
+    ];
+    render(<RiskProfile overallGrade="C" results={results} />);
+    expect(screen.getByText("ServiceOne")).toBeInTheDocument();
+    expect(screen.getByText("ServiceTwo")).toBeInTheDocument();
   });
 });

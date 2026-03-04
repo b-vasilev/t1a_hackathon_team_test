@@ -156,4 +156,141 @@ describe("Home page", () => {
     expect(screen.getByText("Scan policies")).toBeInTheDocument();
     expect(screen.getByText("Understand risk")).toBeInTheDocument();
   });
+
+  it("shows error when analysis fails", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockServices),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ detail: "Analysis failed" }),
+      });
+
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("ServiceAlpha"));
+    fireEvent.click(screen.getByText(/Analyze My Digital Risk Profile/));
+
+    await waitFor(() => {
+      expect(screen.getByText("Analysis failed")).toBeInTheDocument();
+    });
+  });
+
+  it("shows scan complete toast after analysis", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockServices),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockAnalysis),
+      });
+
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("ServiceAlpha"));
+    fireEvent.click(screen.getByText(/Analyze My Digital Risk Profile/));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Scan complete/)
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("dismisses scan complete toast", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockServices),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockAnalysis),
+      });
+
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("ServiceAlpha"));
+    fireEvent.click(screen.getByText(/Analyze My Digital Risk Profile/));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Scan complete/)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTitle("Dismiss"));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Scan complete/)).not.toBeInTheDocument();
+    });
+  });
+
+  it("restores state from sessionStorage", async () => {
+    sessionStorage.setItem("pl_results", JSON.stringify(mockAnalysis.results));
+    sessionStorage.setItem("pl_overallGrade", JSON.stringify("B+"));
+    sessionStorage.setItem("pl_selectedIds", JSON.stringify([1]));
+
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve(mockServices),
+    });
+
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Your Results")).toBeInTheDocument();
+    });
+  });
+
+  it("handles add custom service", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockServices),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: 99,
+            name: "CustomService",
+            website_url: "https://custom.com",
+            privacy_policy_url: "https://custom.com/privacy",
+            icon: "https://custom.com/icon.png",
+          }),
+      });
+
+    render(<Home />);
+
+    await waitFor(() => {
+      expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
+    });
+
+    const urlInput = screen.getByPlaceholderText("https://example.com");
+    fireEvent.change(urlInput, { target: { value: "https://custom.com" } });
+    fireEvent.click(screen.getByText("Add"));
+
+    await waitFor(() => {
+      expect(screen.getByText("CustomService")).toBeInTheDocument();
+    });
+  });
 });

@@ -111,4 +111,52 @@ describe("ServiceGrid", () => {
     fireEvent.keyDown(screen.getByText("ServiceAlpha"), { key: "Enter" });
     expect(onToggle).toHaveBeenCalledWith(1);
   });
+
+  it("filters services by category", () => {
+    const servicesWithCategory = [
+      { ...mockServices[0], category: "Social" },
+      { ...mockServices[1], category: "Messaging" },
+    ];
+    render(
+      <ServiceGrid
+        services={servicesWithCategory}
+        selectedIds={new Set()}
+        onToggle={() => {}}
+        customServices={[]}
+        onRemoveCustom={() => {}}
+      />
+    );
+
+    // Click "Social" category tab
+    fireEvent.click(screen.getByText("Social"));
+    expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
+    expect(screen.queryByText("ServiceBeta")).not.toBeInTheDocument();
+
+    // Click "All" to show all again
+    fireEvent.click(screen.getByText("All"));
+    expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
+    expect(screen.getByText("ServiceBeta")).toBeInTheDocument();
+  });
+
+  it("renders custom services alongside regular services", () => {
+    const customServices = [
+      {
+        id: 99,
+        name: "CustomApp",
+        icon: null,
+        website_url: "https://custom.com",
+      },
+    ];
+    render(
+      <ServiceGrid
+        services={mockServices}
+        selectedIds={new Set([99])}
+        onToggle={() => {}}
+        customServices={customServices}
+        onRemoveCustom={() => {}}
+      />
+    );
+    expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
+    expect(screen.getByText("CustomApp")).toBeInTheDocument();
+  });
 });
