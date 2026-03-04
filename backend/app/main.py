@@ -109,6 +109,7 @@ async def get_services(db: AsyncSession = Depends(get_db)):
                 "website_url": svc.website_url,
                 "privacy_policy_url": svc.privacy_policy_url,
                 "icon": svc.icon,
+                "category": svc.category,
                 "has_analysis": analysis is not None,
             }
         )
