@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import ServiceGrid from '@/components/ServiceGrid';
 import AddService from '@/components/AddService';
 import RiskProfile from '@/components/RiskProfile';
@@ -36,6 +36,16 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [hydrated, setHydrated] = useState(false);
+  const [scanComplete, setScanComplete] = useState(false);
+  const sudokuWindowRef = useRef(null);
+  const resultsRef = useRef(null);
+
+  // Auto-dismiss scan complete toast after 8s
+  useEffect(() => {
+    if (!scanComplete) return;
+    const t = setTimeout(() => setScanComplete(false), 8000);
+    return () => clearTimeout(t);
+  }, [scanComplete]);
 
   // Load popular services
   useEffect(() => {
@@ -103,6 +113,18 @@ export default function Home() {
   const handleAnalyze = async () => {
     setIsLoading(true);
     setError('');
+    if (!sudokuWindowRef.current || sudokuWindowRef.current.closed) {
+      const w = 520, h = 740;
+      const left = Math.round(window.screenX + (window.outerWidth - w) / 2);
+      const top = Math.round(window.screenY + (window.outerHeight - h) / 2);
+      sudokuWindowRef.current = window.open(
+        '/sudoku',
+        'policylens-sudoku',
+        `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`
+      );
+    } else {
+      sudokuWindowRef.current.focus();
+    }
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
@@ -116,6 +138,8 @@ export default function Home() {
       const data = await res.json();
       setResults(data.results);
       setOverallGrade(data.overall_grade);
+      setScanComplete(true);
+      localStorage.setItem('pl_scan_done', String(Date.now()));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -416,11 +440,31 @@ export default function Home() {
             Select at least one service above
           </p>
         )}
+        <p style={{ color: 'var(--pl-text-muted)', fontSize: '0.75rem', textAlign: 'center', maxWidth: '360px' }}>
+          Not ready to face the truth? That&apos;s fair — you can always just{' '}
+          <button
+            onClick={() => {
+              if (!sudokuWindowRef.current || sudokuWindowRef.current.closed) {
+                const w = 520, h = 740;
+                const left = Math.round(window.screenX + (window.outerWidth - w) / 2);
+                const top = Math.round(window.screenY + (window.outerHeight - h) / 2);
+                sudokuWindowRef.current = window.open('/sudoku', 'policylens-sudoku', `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`);
+              } else {
+                sudokuWindowRef.current.focus();
+              }
+            }}
+            style={{ color: 'var(--pl-accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}
+          >
+            play Sudoku
+          </button>
+          {' '}instead. Your data will be harvested either way 😅 Share your sudoku success with friends!
+        </p>
       </section>
 
       {/* Results */}
       {results.length > 0 && (
         <section
+          ref={resultsRef}
           className="flex flex-col gap-4"
           style={{ animation: 'fadeInUp 0.6s ease forwards' }}
         >
@@ -429,6 +473,59 @@ export default function Home() {
           </h2>
           <RiskProfile overallGrade={overallGrade} results={results} onRescanService={rescanService} onClearCache={clearCache} isLoading={isLoading} />
         </section>
+      )}
+
+      {/* Scan complete toast */}
+      {scanComplete && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '12px 20px',
+            borderRadius: '12px',
+            background: 'var(--pl-surface)',
+            border: '1px solid var(--pl-accent)',
+            boxShadow: '0 0 24px rgba(0, 229, 255, 0.25)',
+            animation: 'fadeInUp 0.4s ease forwards',
+            zIndex: 1000,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <span style={{ color: 'var(--pl-accent)', fontSize: '1rem' }}>✓</span>
+          <span style={{ color: 'var(--pl-text)', fontSize: '0.875rem', fontWeight: 500 }}>
+            Scan complete — your privacy report is ready!
+          </span>
+          <button
+            onClick={() => {
+              resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              setScanComplete(false);
+            }}
+            style={{
+              padding: '4px 12px',
+              borderRadius: '8px',
+              background: 'var(--pl-accent)',
+              color: 'var(--pl-bg)',
+              border: 'none',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            View results ↓
+          </button>
+          <button
+            onClick={() => setScanComplete(false)}
+            style={{ background: 'none', border: 'none', color: 'var(--pl-text-dim)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0 }}
+            title="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
       )}
 
       {/* Footer */}
