@@ -111,6 +111,20 @@ function ServiceCard({ result, onRescan, isLoading }) {
   const [expanded, setExpanded] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    setGenerating(true);
+    try {
+      const { generateReport } = await import('./pdf/generateReport');
+      await generateReport(result);
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+      alert('Failed to generate PDF report. Please try again.');
+    } finally {
+      setGenerating(false);
+    }
+  };
   const hasDetails =
     result.actions?.length > 0 ||
     result.red_flags?.length > 0 ||
@@ -288,6 +302,21 @@ function ServiceCard({ result, onRescan, isLoading }) {
               onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--pl-text-muted)'; }}
             >
               [ doc ] View full policy
+            </button>
+            <button
+              onClick={handleDownloadPdf}
+              disabled={generating}
+              className="text-xs transition-colors cursor-pointer"
+              style={{
+                color: 'var(--pl-text-muted)',
+                fontFamily: 'var(--font-mono)',
+                outline: 'none',
+                opacity: generating ? 0.5 : 1,
+              }}
+              onMouseEnter={(e) => { if (!generating) { e.currentTarget.style.color = 'var(--pl-accent)'; } }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--pl-text-muted)'; }}
+            >
+              {generating ? '[ ... ] Generating...' : '[ pdf ] Download report'}
             </button>
           </div>
 
