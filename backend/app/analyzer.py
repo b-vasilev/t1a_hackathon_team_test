@@ -527,19 +527,45 @@ async def _llm_chat_call(system: str, messages: list[dict], max_tokens: int = 51
         kwargs["api_key"] = LLM_API_KEY
     if LLM_BASE_URL:
         kwargs["api_base"] = LLM_BASE_URL
-    try:
-        response = await litellm.acompletion(**kwargs)
-    except Exception as e:
-        logger.error("LLM API unreachable (chat): %s: %s", type(e).__name__, e)
-        raise LLMUnavailableError(str(e)) from e
-    usage = response.usage
-    logger.info(
-        "LLM chat call completed | tokens: prompt=%d completion=%d total=%d",
-        usage.prompt_tokens,
-        usage.completion_tokens,
-        usage.total_tokens,
-    )
-    return response.choices[0].message.content.strip()
+
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            response = await litellm.acompletion(**kwargs)
+            usage = response.usage
+            logger.info(
+                "LLM chat call completed | attempt=%d | tokens: prompt=%d completion=%d total=%d",
+                attempt + 1,
+                usage.prompt_tokens,
+                usage.completion_tokens,
+                usage.total_tokens,
+            )
+            return response.choices[0].message.content.strip()
+        except _TRANSIENT_ERRORS as e:
+            last_exc = e
+            if attempt < _MAX_RETRIES - 1:
+                delay = _RETRY_DELAYS[attempt]
+                logger.warning(
+                    "LLM chat transient error (attempt %d/%d), retrying in %ds: %s: %s",
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
+                    type(e).__name__,
+                    e,
+                )
+                await asyncio.sleep(delay)
+            else:
+                logger.error(
+                    "LLM API unreachable (chat) after %d attempts: %s: %s",
+                    _MAX_RETRIES,
+                    type(e).__name__,
+                    e,
+                )
+        except Exception as e:
+            logger.error("LLM API error (chat, non-retryable): %s: %s", type(e).__name__, e)
+            raise LLMUnavailableError(str(e)) from e
+
+    raise LLMUnavailableError(str(last_exc)) from last_exc
 
 
 def _format_analysis_context(analysis_context: dict) -> str:

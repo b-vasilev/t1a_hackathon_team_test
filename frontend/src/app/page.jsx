@@ -13,6 +13,7 @@ const SS_KEYS = {
   results: 'pl_results',
   overallGrade: 'pl_overallGrade',
   activeTab: 'pl_active_tab',
+  noSudoku: 'pl_no_sudoku',
 };
 
 function loadFromSession(key, fallback) {
@@ -56,6 +57,12 @@ export default function Home() {
   const sudokuWindowRef = useRef(null);
   const resultsRef = useRef(null);
   const scanMsgTimerRef = useRef(null);
+  const cancelledRef = useRef(false);
+
+  // Clean up scan message timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(scanMsgTimerRef.current);
+  }, []);
 
   const openSudokuPopup = useCallback(() => {
     if (!sudokuWindowRef.current || sudokuWindowRef.current.closed) {
@@ -94,7 +101,7 @@ export default function Home() {
     setResults(loadFromSession(SS_KEYS.results, []));
     setOverallGrade(loadFromSession(SS_KEYS.overallGrade, null));
     setActiveTab(loadFromSession(SS_KEYS.activeTab, 'analyze'));
-    setNoSudoku(Boolean(sessionStorage.getItem('pl_no_sudoku')));
+    setNoSudoku(Boolean(loadFromSession(SS_KEYS.noSudoku, false)));
     setHydrated(true);
   }, []);
 
@@ -150,18 +157,19 @@ export default function Home() {
   }, []);
 
   const handleAnalyze = async () => {
+    clearTimeout(scanMsgTimerRef.current);
+    cancelledRef.current = false;
     setIsLoading(true);
     setError('');
 
-    // Start progress message cycling
+    // Start progress message cycling (loops when exhausted)
     setScanMsg(SCAN_MSGS[0]);
     let msgIdx = 0;
     const advanceMsg = () => {
+      if (cancelledRef.current) { return; }
       msgIdx += 1;
-      if (msgIdx < SCAN_MSGS.length) {
-        setScanMsg(SCAN_MSGS[msgIdx]);
-        scanMsgTimerRef.current = setTimeout(advanceMsg, 2800);
-      }
+      setScanMsg(SCAN_MSGS[msgIdx % SCAN_MSGS.length]);
+      scanMsgTimerRef.current = setTimeout(advanceMsg, 2800);
     };
     scanMsgTimerRef.current = setTimeout(advanceMsg, 2800);
 
@@ -192,6 +200,7 @@ export default function Home() {
     } catch (e) {
       setError(e.message);
     } finally {
+      cancelledRef.current = true;
       clearTimeout(scanMsgTimerRef.current);
       setScanMsg('');
       setIsLoading(false);
@@ -209,8 +218,12 @@ export default function Home() {
         body: JSON.stringify({ service_ids: [serviceId] }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Rescan failed');
+        let detail = `Rescan failed (HTTP ${res.status})`;
+        try {
+          const err = await res.json();
+          if (err.detail) { detail = err.detail; }
+        } catch {}
+        throw new Error(detail);
       }
       const data = await res.json();
       const newResult = data.results[0];
@@ -628,6 +641,8 @@ export default function Home() {
             {/* Progress log */}
             {isLoading && scanMsg && (
               <p
+                aria-live="polite"
+                role="status"
                 style={{
                   color: 'var(--pl-accent)',
                   fontSize: '0.75rem',
@@ -672,11 +687,7 @@ export default function Home() {
                 checked={noSudoku}
                 onChange={(e) => {
                   setNoSudoku(e.target.checked);
-                  if (e.target.checked) {
-                    sessionStorage.setItem('pl_no_sudoku', '1');
-                  } else {
-                    sessionStorage.removeItem('pl_no_sudoku');
-                  }
+                  saveToSession(SS_KEYS.noSudoku, e.target.checked || null);
                 }}
                 style={{ accentColor: 'var(--pl-accent)', cursor: 'pointer' }}
               />
@@ -701,7 +712,7 @@ export default function Home() {
       )}
 
       {activeTab === 'compare' && (
-        <CompareTab services={services} parentHydrated={hydrated} />
+        <CompareTab services={services} />
       )}
 
       {/* Scan complete toast */}
