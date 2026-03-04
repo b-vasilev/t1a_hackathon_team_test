@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import ServiceIcon from '@/components/ServiceIcon';
+import PolicyChat from '@/components/PolicyChat';
 
 function gradeToPercent(grade) {
   if (!grade || grade === 'N/A') {
@@ -107,6 +108,7 @@ function actionCategoryIcon(category) {
 
 function ServiceCard({ result, onRescan, isLoading }) {
   const [expanded, setExpanded] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const hasDetails =
     result.actions?.length > 0 ||
     result.red_flags?.length > 0 ||
@@ -258,6 +260,26 @@ function ServiceCard({ result, onRescan, isLoading }) {
                 </div>
               )}
             </div>
+          </div>
+        </>
+      )}
+
+      {result.grade && result.grade !== 'N/A' && (
+        <>
+          <button
+            onClick={() => setChatOpen(!chatOpen)}
+            className="text-xs self-start transition-colors"
+            style={{ color: 'var(--pl-accent)', fontFamily: 'var(--font-mono)', outline: 'none' }}
+            onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.7'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+            onFocus={(e) => { e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.opacity = '0.9'; }}
+            onBlur={(e) => { e.currentTarget.style.textDecoration = 'none'; e.currentTarget.style.opacity = '1'; }}
+          >
+            {chatOpen ? '[ x ] Close chat' : '[ ? ] Ask about this policy'}
+          </button>
+
+          <div className={`details-collapse ${chatOpen ? 'open' : ''}`}>
+            {chatOpen && <PolicyChat serviceId={result.service_id} />}
           </div>
         </>
       )}

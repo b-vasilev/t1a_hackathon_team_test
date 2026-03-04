@@ -7,11 +7,19 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .analyzer import LLM_MODEL, analyze_policy, average_grade, find_privacy_policy_url, get_service_actions
+from .analyzer import (
+    LLM_MODEL,
+    LLMUnavailableError,
+    analyze_policy,
+    average_grade,
+    chat_about_policy,
+    find_privacy_policy_url,
+    get_service_actions,
+)
 from .database import Base, SessionLocal, engine, get_db
 from .logging_config import setup_logging
 from .models import PolicyAnalysis, Service
@@ -296,6 +304,7 @@ async def analyze_services(
                 categories=json.dumps(analysis_data.get("categories", {})),
                 highlights=json.dumps(analysis_data.get("highlights", [])),
                 actions=json.dumps(actions_data),
+                policy_text=analysis_data.get("policy_text"),
             )
             session.add(analysis)
             await session.commit()
@@ -331,3 +340,73 @@ async def analyze_services(
         "overall_grade": overall,
         "results": list(results),
     }
+
+
+# ── Chat ─────────────────────────────────────────────────────────────────────
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+    @field_validator("role")
+    @classmethod
+    def role_must_be_valid(cls, v: str) -> str:
+        if v not in ("user", "assistant"):
+            raise ValueError("role must be 'user' or 'assistant'")
+        return v
+
+
+class ChatRequest(BaseModel):
+    service_id: int
+    messages: list[ChatMessage]
+
+
+@app.post("/api/chat")
+async def chat_with_policy(
+    req: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    # Validate messages
+    if not req.messages:
+        raise HTTPException(status_code=400, detail="Messages must not be empty")
+    if req.messages[-1].role != "user":
+        raise HTTPException(status_code=400, detail="Last message must have role 'user'")
+
+    # Load service
+    svc_result = await db.execute(select(Service).where(Service.id == req.service_id))
+    service = svc_result.scalar_one_or_none()
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+
+    # Load latest analysis
+    analysis_result = await db.execute(
+        select(PolicyAnalysis)
+        .where(PolicyAnalysis.service_id == req.service_id)
+        .order_by(PolicyAnalysis.analyzed_at.desc())
+        .limit(1)
+    )
+    analysis = analysis_result.scalar_one_or_none()
+    if not analysis or not analysis.policy_text:
+        raise HTTPException(
+            status_code=404,
+            detail="No analysis found for this service. Please analyze the service first.",
+        )
+
+    # Truncate policy text for token budget
+    policy_text = analysis.policy_text[:50000]
+
+    # Build messages list for LLM
+    messages = [{"role": m.role, "content": m.content} for m in req.messages]
+
+    try:
+        answer = await chat_about_policy(
+            service_name=service.name,
+            grade=analysis.grade,
+            policy_text=policy_text,
+            messages=messages,
+        )
+    except LLMUnavailableError:
+        raise HTTPException(status_code=503, detail="LLM service is temporarily unavailable")
+
+    return {"answer": answer, "service_id": req.service_id}
