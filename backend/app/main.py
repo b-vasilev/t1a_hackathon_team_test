@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .analyzer import LLM_MODEL, analyze_policy, average_grade, find_privacy_policy_url
+from .analyzer import LLM_MODEL, analyze_policy, average_grade, find_privacy_policy_url, get_service_actions
 from .database import Base, SessionLocal, engine, get_db
 from .logging_config import setup_logging
 from .models import PolicyAnalysis, Service
@@ -213,6 +213,7 @@ async def analyze_services(
                     "positives": json.loads(cached.positives),
                     "categories": json.loads(cached.categories),
                     "highlights": json.loads(cached.highlights),
+                    "actions": json.loads(cached.actions) if cached.actions else [],
                     "cached": True,
                 }
 
@@ -239,11 +240,15 @@ async def analyze_services(
                     "positives": [],
                     "categories": {},
                     "highlights": [],
+                    "actions": [],
                     "cached": False,
                 }
 
             try:
-                analysis_data = await analyze_policy(privacy_policy_url)
+                analysis_data, actions_data = await asyncio.gather(
+                    analyze_policy(privacy_policy_url),
+                    get_service_actions(svc_name, svc_website_url),
+                )
             except Exception as e:
                 logger.error("LLM API error for %s: %s", svc_name, e)
                 return {
@@ -257,6 +262,7 @@ async def analyze_services(
                     "positives": [],
                     "categories": {},
                     "highlights": [],
+                    "actions": [],
                     "cached": False,
                 }
 
@@ -270,6 +276,7 @@ async def analyze_services(
                 positives=json.dumps(analysis_data.get("positives", [])),
                 categories=json.dumps(analysis_data.get("categories", {})),
                 highlights=json.dumps(analysis_data.get("highlights", [])),
+                actions=json.dumps(actions_data),
             )
             session.add(analysis)
             await session.commit()
@@ -285,6 +292,7 @@ async def analyze_services(
                 "positives": analysis_data.get("positives", []),
                 "categories": analysis_data.get("categories", {}),
                 "highlights": analysis_data.get("highlights", []),
+                "actions": actions_data,
                 "cached": False,
             }
 

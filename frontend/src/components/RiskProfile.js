@@ -93,9 +93,22 @@ function GradeBadge({ grade, size = 'md' }) {
   );
 }
 
+function actionCategoryIcon(category) {
+  const icons = {
+    deletion: '\u{1F5D1}\uFE0F',
+    data_access: '\u{1F4E5}',
+    privacy_settings: '\u{1F6E1}\uFE0F',
+    opt_out: '\u{1F441}\uFE0F',
+    legal_rights: '\u2696\uFE0F',
+    other: '\u2139\uFE0F',
+  };
+  return icons[category] || '\u2139\uFE0F';
+}
+
 function ServiceCard({ result }) {
   const [expanded, setExpanded] = useState(false);
   const hasDetails =
+    result.actions?.length > 0 ||
     result.red_flags?.length > 0 ||
     result.warnings?.length > 0 ||
     result.positives?.length > 0;
@@ -145,6 +158,48 @@ function ServiceCard({ result }) {
 
           <div className={`details-collapse ${expanded ? 'open' : ''}`}>
             <div className="flex flex-col gap-3 text-sm pt-1">
+              {result.actions?.length > 0 && (
+                <div>
+                  <p className="font-medium mb-2" style={{ color: 'var(--pl-accent)' }}>What You Can Do</p>
+                  <div className="space-y-2">
+                    {result.actions.map((action, i) => (
+                      <div
+                        key={i}
+                        className="rounded-lg px-3 py-2"
+                        style={{
+                          background: 'rgba(0, 210, 255, 0.06)',
+                          border: '1px solid rgba(0, 210, 255, 0.15)',
+                        }}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="text-base shrink-0 mt-0.5">{actionCategoryIcon(action.category)}</span>
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={action.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-sm hover:underline"
+                              style={{ color: 'var(--pl-text)' }}
+                            >{action.label} <span style={{ color: 'var(--pl-accent)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>&rarr;</span></a>
+                            {action.description && (
+                              <p className="text-xs mt-0.5" style={{ color: 'var(--pl-text-muted)' }}>{action.description}</p>
+                            )}
+                            {action.source && (
+                              <a
+                                href={action.source}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs mt-1 inline-block hover:underline"
+                                style={{ color: 'var(--pl-accent)', opacity: 0.7 }}
+                              >source</a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {result.red_flags?.length > 0 && (
                 <div>
                   <p className="font-medium mb-1" style={{ color: 'var(--pl-grade-f)' }}>Red Flags</p>
