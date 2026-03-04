@@ -29,10 +29,10 @@ export default function ServiceGrid({ services, selectedIds, onToggle, customSer
             style={
               selected
                 ? {
-                    border: '1px solid var(--pl-accent)',
+                    border: '2px solid var(--pl-accent)',
                     background: 'var(--pl-accent-muted)',
-                    animation: 'pulseGlow 2.5s ease-in-out infinite',
-                    transform: 'translateY(0)',
+                    boxShadow: '0 0 12px rgba(0, 229, 255, 0.35), inset 0 0 20px rgba(0, 229, 255, 0.08)',
+                    transform: 'translateY(-2px)',
                   }
                 : {
                     border: '1px solid var(--pl-border)',
@@ -81,8 +81,8 @@ export default function ServiceGrid({ services, selectedIds, onToggle, customSer
             </span>
             {selected && (
               <span
-                className="absolute bottom-1.5 right-2 w-4 h-4 rounded-full flex items-center justify-center text-[10px]"
-                style={{ background: 'var(--pl-accent)', color: 'var(--pl-bg)' }}
+                className="absolute bottom-1.5 right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
+                style={{ background: 'var(--pl-accent)', color: 'var(--pl-bg)', boxShadow: '0 0 6px rgba(0, 229, 255, 0.5)' }}
               >
                 &#x2713;
               </span>
