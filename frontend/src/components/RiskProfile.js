@@ -192,25 +192,28 @@ function ServiceCard({ result, onRescan, isLoading }) {
                         <div className="flex items-start gap-2">
                           <span className="text-base shrink-0 mt-0.5">{actionCategoryIcon(action.category)}</span>
                           <div className="flex-1 min-w-0">
-                            <a
-                              href={action.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-medium text-sm hover:underline"
-                              style={{ color: 'var(--pl-text)' }}
-                            >{action.label} <span style={{ color: 'var(--pl-accent)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>&rarr;</span></a>
+                            <span className="font-medium text-sm" style={{ color: 'var(--pl-text)' }}>{action.label}</span>
                             {action.description && (
                               <p className="text-xs mt-0.5" style={{ color: 'var(--pl-text-muted)' }}>{action.description}</p>
                             )}
-                            {action.source && (
+                            <div className="flex gap-3 mt-1.5">
                               <a
-                                href={action.source}
+                                href={action.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-xs mt-1 inline-block hover:underline"
-                                style={{ color: 'var(--pl-accent)', opacity: 0.7 }}
-                              >source</a>
-                            )}
+                                className="text-xs hover:underline"
+                                style={{ color: 'var(--pl-accent)', fontFamily: 'var(--font-mono)' }}
+                              >Go to page &rarr;</a>
+                              {action.source && (
+                                <a
+                                  href={action.source}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs hover:underline"
+                                  style={{ color: 'var(--pl-text-muted)', fontFamily: 'var(--font-mono)' }}
+                                >How-to guide &rarr;</a>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
