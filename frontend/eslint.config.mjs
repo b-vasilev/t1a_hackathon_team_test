@@ -1,17 +1,21 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({ baseDirectory: __dirname });
+import nextPlugin from "@next/eslint-plugin-next";
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals"),
   {
+    files: ["**/*.{js,jsx,mjs}"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+      },
+    },
+    plugins: {
+      "@next/next": nextPlugin,
+    },
     rules: {
-      "no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      ...nextPlugin.configs.recommended.rules,
+      "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^[A-Z]" }],
       "no-console": ["warn", { allow: ["warn", "error"] }],
       "no-var": "error",
       "prefer-const": "error",
@@ -26,14 +30,10 @@ const eslintConfig = [
       "no-throw-literal": "error",
       "prefer-template": "error",
       "no-param-reassign": "error",
-      "react/self-closing-comp": "error",
-      "react/jsx-no-useless-fragment": "error",
-      "react/jsx-curly-brace-presence": [
-        "error",
-        { props: "never", children: "never" },
-      ],
-      "react-hooks/exhaustive-deps": "warn",
     },
+  },
+  {
+    ignores: [".next/**", "node_modules/**"],
   },
 ];
 

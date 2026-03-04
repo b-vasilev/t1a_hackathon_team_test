@@ -23,7 +23,7 @@ install:
 # Lint all
 lint:
     cd backend && python -m ruff check app/
-    cd frontend && npm run lint
+    cd frontend && npx eslint .
 
 # Format all
 fmt:

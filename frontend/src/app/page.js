@@ -13,7 +13,7 @@ const SS_KEYS = {
 };
 
 function loadFromSession(key, fallback) {
-  if (typeof window === 'undefined') return fallback;
+  if (typeof window === 'undefined') {return fallback;}
   try {
     const raw = sessionStorage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
@@ -23,7 +23,7 @@ function loadFromSession(key, fallback) {
 }
 
 function saveToSession(key, value) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined') {return;}
   sessionStorage.setItem(key, JSON.stringify(value));
 }
 
@@ -57,19 +57,19 @@ export default function Home() {
 
   // Persist selectedIds
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated) {return;}
     saveToSession(SS_KEYS.selectedIds, [...selectedIds]);
   }, [selectedIds, hydrated]);
 
   // Persist customServices
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated) {return;}
     saveToSession(SS_KEYS.customServices, customServices);
   }, [customServices, hydrated]);
 
   // Persist results
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated) {return;}
     saveToSession(SS_KEYS.results, results);
     saveToSession(SS_KEYS.overallGrade, overallGrade);
   }, [results, overallGrade, hydrated]);
@@ -77,15 +77,15 @@ export default function Home() {
   const toggleService = useCallback((id) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {next.delete(id);}
+      else {next.add(id);}
       return next;
     });
   }, []);
 
   const handleAddCustom = useCallback((svc) => {
     setCustomServices((prev) => {
-      if (prev.some((s) => s.id === svc.id)) return prev;
+      if (prev.some((s) => s.id === svc.id)) {return prev;}
       return [...prev, svc];
     });
     setSelectedIds((prev) => new Set([...prev, svc.id]));

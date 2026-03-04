@@ -14,7 +14,7 @@ No account required. All state is stored in your browser session.
 Browser (localhost:3000)
     │
     ▼
-Next.js 14 frontend          (Docker, port 3000)
+Next.js 16 frontend          (Docker, port 3000)
     │  /api/* proxy routes
     ▼
 FastAPI backend              (Docker, internal port 8000)
@@ -25,8 +25,8 @@ FastAPI backend              (Docker, internal port 8000)
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 14 (App Router), Tailwind CSS |
-| Backend | Python 3.11, FastAPI, LiteLLM |
+| Frontend | Next.js 16 (App Router), React 19, Tailwind CSS 4 |
+| Backend | Python 3.13, FastAPI, LiteLLM |
 | Database | SQLite (persisted in a Docker volume) |
 | AI | Claude Haiku 4.5 via LiteLLM (policy grading + URL discovery) |
 | Infra | Docker Compose — 2 containers, 1 internal network |

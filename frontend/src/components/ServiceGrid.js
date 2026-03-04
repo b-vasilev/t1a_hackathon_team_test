@@ -4,6 +4,7 @@ function ServiceIcon({ icon, name }) {
   if (icon && icon.startsWith('http')) {
     return (
       <div className="w-10 h-10 flex items-center justify-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={icon}
           alt={name}

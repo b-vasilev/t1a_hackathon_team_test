@@ -6,6 +6,7 @@ function ServiceIcon({ icon, name }) {
   if (icon && icon.startsWith('http')) {
     return (
       <div className="w-8 h-8 shrink-0 flex items-center justify-center mt-0.5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={icon}
           alt={name}
@@ -30,12 +31,12 @@ function ServiceIcon({ icon, name }) {
 }
 
 function gradeColors(grade) {
-  if (!grade || grade === 'N/A') return 'text-gray-400 bg-gray-800 border-gray-700';
+  if (!grade || grade === 'N/A') {return 'text-gray-400 bg-gray-800 border-gray-700';}
   const letter = grade[0];
-  if (letter === 'A') return 'text-green-400 bg-green-900/40 border-green-500/40';
-  if (letter === 'B') return 'text-lime-400 bg-lime-900/40 border-lime-500/40';
-  if (letter === 'C') return 'text-yellow-400 bg-yellow-900/40 border-yellow-500/40';
-  if (letter === 'D') return 'text-orange-400 bg-orange-900/40 border-orange-500/40';
+  if (letter === 'A') {return 'text-green-400 bg-green-900/40 border-green-500/40';}
+  if (letter === 'B') {return 'text-lime-400 bg-lime-900/40 border-lime-500/40';}
+  if (letter === 'C') {return 'text-yellow-400 bg-yellow-900/40 border-yellow-500/40';}
+  if (letter === 'D') {return 'text-orange-400 bg-orange-900/40 border-orange-500/40';}
   return 'text-red-400 bg-red-900/40 border-red-500/40';
 }
 
@@ -127,7 +128,7 @@ function ServiceCard({ result }) {
 }
 
 export default function RiskProfile({ overallGrade, results }) {
-  if (!results || results.length === 0) return null;
+  if (!results || results.length === 0) {return null;}
 
   const totalRedFlags = results.reduce((n, r) => n + (r.red_flags?.length || 0), 0);
   const totalWarnings = results.reduce((n, r) => n + (r.warnings?.length || 0), 0);

@@ -9,7 +9,7 @@ export default function AddService({ onAdd }) {
 
   async function handleAdd() {
     const trimmed = url.trim();
-    if (!trimmed) return;
+    if (!trimmed) {return;}
     setLoading(true);
     setError('');
     try {
