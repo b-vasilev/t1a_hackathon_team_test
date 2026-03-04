@@ -189,6 +189,9 @@ export default function PolicyViewer({ serviceId, serviceName, grade, onClose })
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      if (/^[=\-]{3,}\s*$/.test(line)) {
+        continue;
+      }
       if (line.startsWith('## ')) {
         flushParagraph();
         const heading = line.slice(3).trim();

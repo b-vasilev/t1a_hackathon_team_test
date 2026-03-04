@@ -316,6 +316,13 @@ def _clean_jina_text(text: str) -> str:
     # Convert markdown links [text](url) → text
     result = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", result)
 
+    # Convert setext-style headings (text followed by === or ---) to ## headings
+    result = re.sub(r"^(.+)\n[=]{2,}\s*$", r"## \1", result, flags=re.MULTILINE)
+    result = re.sub(r"^(.+)\n[-]{2,}\s*$", r"## \1", result, flags=re.MULTILINE)
+
+    # Remove any remaining standalone separator lines (=== or ---)
+    result = re.sub(r"^[=\-]{3,}\s*$", "", result, flags=re.MULTILINE)
+
     # Normalize heading levels: ###+ → ##
     result = re.sub(r"^#{1,6}\s+", "## ", result, flags=re.MULTILINE)
 
@@ -498,10 +505,61 @@ async def _llm_chat_call(system: str, messages: list[dict], max_tokens: int = 51
     return response.choices[0].message.content.strip()
 
 
-async def chat_about_policy(service_name: str, grade: str, policy_text: str, messages: list[dict]) -> str:
+def _format_analysis_context(analysis_context: dict) -> str:
+    """Format analysis results into a readable context block for the chat prompt."""
+    parts = [f"Summary: {analysis_context.get('summary', 'N/A')}"]
+
+    if analysis_context.get("red_flags"):
+        parts.append("Red flags:\n" + "\n".join(f"- {f}" for f in analysis_context["red_flags"]))
+    if analysis_context.get("warnings"):
+        parts.append("Warnings:\n" + "\n".join(f"- {w}" for w in analysis_context["warnings"]))
+    if analysis_context.get("positives"):
+        parts.append("Positives:\n" + "\n".join(f"- {p}" for p in analysis_context["positives"]))
+
+    categories = analysis_context.get("categories", {})
+    if categories:
+        cat_lines = []
+        for cat, info in categories.items():
+            label = cat.replace("_", " ").title()
+            cat_lines.append(f"- {label}: {info.get('grade', 'N/A')} — {info.get('finding', 'Not assessed')}")
+        parts.append("Category grades:\n" + "\n".join(cat_lines))
+
+    if analysis_context.get("highlights"):
+        parts.append("Key highlights:\n" + "\n".join(f"- {h}" for h in analysis_context["highlights"]))
+
+    actions = analysis_context.get("actions", [])
+    if actions:
+        action_lines = []
+        for a in actions:
+            line = f"- {a.get('label', 'Action')}"
+            if a.get("description"):
+                line += f": {a['description']}"
+            if a.get("url"):
+                line += f" ({a['url']})"
+            action_lines.append(line)
+        parts.append("What you can do:\n" + "\n".join(action_lines))
+
+    return "Analysis results:\n" + "\n\n".join(parts)
+
+
+async def chat_about_policy(
+    service_name: str, grade: str, policy_text: str, messages: list[dict], analysis_context: dict | None = None
+) -> str:
     """Answer user questions about a specific privacy policy."""
-    system_prompt = CHAT_SYSTEM.format(service_name=service_name, grade=grade, policy_text=policy_text)
-    return await _llm_chat_call(system=system_prompt, messages=messages)
+    context_str = _format_analysis_context(analysis_context) if analysis_context else ""
+    system_prompt = CHAT_SYSTEM.format(
+        service_name=service_name, grade=grade, policy_text=policy_text, analysis_context=context_str
+    )
+    # Wrap user messages in delimiters so the model can distinguish them from system content
+    wrapped = []
+    for m in messages:
+        if m["role"] == "user":
+            # Strip delimiter tags from user input to prevent delimiter escape
+            sanitized = m["content"].replace("</user_message>", "").replace("<user_message>", "")
+            wrapped.append({"role": "user", "content": f"<user_message>{sanitized}</user_message>"})
+        else:
+            wrapped.append(m)
+    return await _llm_chat_call(system=system_prompt, messages=wrapped)
 
 
 def _empty_result(summary: str) -> dict:

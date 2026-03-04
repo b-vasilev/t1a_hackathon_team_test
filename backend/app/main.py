@@ -381,6 +381,10 @@ async def analyze_services(
 # ── Chat ─────────────────────────────────────────────────────────────────────
 
 
+MAX_CHAT_MESSAGE_LENGTH = 2000
+MAX_CHAT_TURNS = 20
+
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -390,6 +394,14 @@ class ChatMessage(BaseModel):
     def role_must_be_valid(cls, v: str) -> str:
         if v not in ("user", "assistant"):
             raise ValueError("role must be 'user' or 'assistant'")
+        return v
+
+    @field_validator("content")
+    @classmethod
+    def content_must_be_reasonable(cls, v: str, info) -> str:
+        # Only limit user messages; assistant messages from conversation history can be longer
+        if info.data.get("role") == "user" and len(v) > MAX_CHAT_MESSAGE_LENGTH:
+            raise ValueError(f"Message too long (max {MAX_CHAT_MESSAGE_LENGTH} characters)")
         return v
 
 
@@ -406,6 +418,8 @@ async def chat_with_policy(
     # Validate messages
     if not req.messages:
         raise HTTPException(status_code=400, detail="Messages must not be empty")
+    if len(req.messages) > MAX_CHAT_TURNS:
+        raise HTTPException(status_code=400, detail=f"Too many messages (max {MAX_CHAT_TURNS})")
     if req.messages[-1].role != "user":
         raise HTTPException(status_code=400, detail="Last message must have role 'user'")
 
@@ -463,12 +477,24 @@ async def chat_with_policy(
     # Build messages list for LLM
     messages = [{"role": m.role, "content": m.content} for m in req.messages]
 
+    # Build analysis context for the chat
+    analysis_context = {
+        "summary": analysis.summary,
+        "red_flags": json.loads(analysis.red_flags) if analysis.red_flags else [],
+        "warnings": json.loads(analysis.warnings) if analysis.warnings else [],
+        "positives": json.loads(analysis.positives) if analysis.positives else [],
+        "categories": json.loads(analysis.categories) if analysis.categories else {},
+        "highlights": json.loads(analysis.highlights) if analysis.highlights else [],
+        "actions": json.loads(analysis.actions) if analysis.actions else [],
+    }
+
     try:
         answer = await chat_about_policy(
             service_name=service.name,
             grade=analysis.grade,
             policy_text=context,
             messages=messages,
+            analysis_context=analysis_context,
         )
     except LLMUnavailableError:
         raise HTTPException(status_code=503, detail="LLM service is temporarily unavailable")

@@ -43,8 +43,7 @@ describe("ServiceGrid", () => {
         onRemoveCustom={() => {}}
       />
     );
-    const buttons = screen.getAllByRole("button");
-    fireEvent.click(buttons[0]);
+    fireEvent.click(screen.getByText("ServiceAlpha"));
     expect(onToggle).toHaveBeenCalledWith(1);
   });
 
@@ -109,8 +108,7 @@ describe("ServiceGrid", () => {
         onRemoveCustom={() => {}}
       />
     );
-    const buttons = screen.getAllByRole("button");
-    fireEvent.keyDown(buttons[0], { key: "Enter" });
+    fireEvent.keyDown(screen.getByText("ServiceAlpha"), { key: "Enter" });
     expect(onToggle).toHaveBeenCalledWith(1);
   });
 });

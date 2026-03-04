@@ -81,7 +81,7 @@ POPULAR_SERVICES = [
     {
         "name": "Snapchat",
         "website_url": "https://www.snapchat.com",
-        "privacy_policy_url": "https://snap.com/en-US/privacy/privacy-policy",
+        "privacy_policy_url": "https://values.snap.com/privacy/privacy-policy",
         "icon": _favicon("snapchat.com"),
         "category": "Social",
     },

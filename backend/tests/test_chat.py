@@ -17,6 +17,42 @@ def _mock_policy_text_obj(content="This is the full privacy policy text for test
 class TestChatEndpoint:
     """Tests for POST /api/chat."""
 
+    async def test_user_message_too_long_returns_422(self, client):
+        long_msg = "x" * 2001
+        resp = await client.post(
+            "/api/chat",
+            json={"service_id": 1, "messages": [{"role": "user", "content": long_msg}]},
+        )
+        assert resp.status_code == 422
+
+    async def test_assistant_message_long_is_allowed(self, client):
+        """Assistant messages in conversation history may exceed the user limit."""
+        long_assistant = "a" * 3000
+        resp = await client.post(
+            "/api/chat",
+            json={
+                "service_id": 9999,
+                "messages": [
+                    {"role": "user", "content": "Hi"},
+                    {"role": "assistant", "content": long_assistant},
+                    {"role": "user", "content": "Thanks"},
+                ],
+            },
+        )
+        # Should fail with 404 (service not found), not 422 (validation)
+        assert resp.status_code == 404
+
+    async def test_too_many_messages_returns_400(self, client):
+        messages = [{"role": "user" if i % 2 == 0 else "assistant", "content": "msg"} for i in range(21)]
+        # Ensure last message is from user
+        messages.append({"role": "user", "content": "final"})
+        resp = await client.post(
+            "/api/chat",
+            json={"service_id": 1, "messages": messages},
+        )
+        assert resp.status_code == 400
+        assert "too many" in resp.json()["detail"].lower()
+
     async def test_empty_messages_returns_400(self, client):
         resp = await client.post("/api/chat", json={"service_id": 1, "messages": []})
         assert resp.status_code == 400
@@ -141,6 +177,16 @@ class TestChatEndpoint:
         assert call_kwargs.kwargs["grade"] == "B+"
         assert "privacy policy text" in call_kwargs.kwargs["policy_text"]
         assert call_kwargs.kwargs["messages"] == [{"role": "user", "content": "What data do they collect?"}]
+        # Verify analysis context is passed
+        ctx = call_kwargs.kwargs["analysis_context"]
+        assert isinstance(ctx, dict)
+        assert "summary" in ctx
+        assert "red_flags" in ctx
+        assert "warnings" in ctx
+        assert "positives" in ctx
+        assert "categories" in ctx
+        assert "highlights" in ctx
+        assert "actions" in ctx
 
     @patch(
         "app.main.chat_about_policy",

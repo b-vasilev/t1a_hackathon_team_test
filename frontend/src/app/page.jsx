@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import ServiceGrid from '@/components/ServiceGrid';
 import AddService from '@/components/AddService';
 import RiskProfile from '@/components/RiskProfile';
@@ -190,6 +191,19 @@ export default function Home() {
     <main className="max-w-5xl mx-auto px-4 py-10 flex flex-col gap-12">
       {/* Hero */}
       <header className="hero-section scan-line relative py-12 md:py-16 flex flex-col gap-4 text-center items-center">
+        <Image
+          src="/policy-icon.svg"
+          alt="PolicyLens icon"
+          className="relative z-1"
+          width={80}
+          height={92}
+          priority
+          style={{
+            animation: 'fadeInUp 0.6s ease forwards',
+            opacity: 0,
+            filter: 'drop-shadow(0 0 20px rgba(90, 186, 187, 0.3))',
+          }}
+        />
         <h1
           className="hero-title text-5xl md:text-6xl font-bold tracking-tight relative z-1"
           style={{ fontFamily: 'var(--font-heading)' }}

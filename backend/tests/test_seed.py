@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import select
 
 from app.models import Service
-from app.seed import seed_popular_services
+from app.seed import POPULAR_SERVICES, seed_popular_services
 
 
 @pytest.mark.asyncio
@@ -11,14 +11,14 @@ class TestSeedPopularServices:
         await seed_popular_services(db_session)
         result = await db_session.execute(select(Service).where(Service.is_popular))
         services = result.scalars().all()
-        assert len(services) == 9
+        assert len(services) == len(POPULAR_SERVICES)
 
     async def test_idempotent(self, db_session):
         await seed_popular_services(db_session)
         await seed_popular_services(db_session)
         result = await db_session.execute(select(Service).where(Service.is_popular))
         services = result.scalars().all()
-        assert len(services) == 9
+        assert len(services) == len(POPULAR_SERVICES)
 
     async def test_service_fields(self, db_session):
         await seed_popular_services(db_session)
