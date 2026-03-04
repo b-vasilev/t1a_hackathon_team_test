@@ -28,7 +28,7 @@ function saveToSession(key, value) {
   sessionStorage.setItem(key, JSON.stringify(value));
 }
 
-export default function CompareTab({ services = [], parentHydrated: _parentHydrated = false }) {
+export default function CompareTab({ services = [], parentHydrated: _parentHydrated = false, preloadService = null, onPreloadConsumed }) {
   const [selectionOrder, setSelectionOrder] = useState([]);
   const [customServices, setCustomServices] = useState([]);
   const [results, setResults] = useState(null);
@@ -46,6 +46,17 @@ export default function CompareTab({ services = [], parentHydrated: _parentHydra
     setResults(loadFromSession(SS_KEYS.results, null));
     setHydrated(true);
   }, []);
+
+  // When a service is pre-loaded from the Custom tab, add it to slot A
+  useEffect(() => {
+    if (!preloadService || !hydrated) { return; }
+    setCustomServices((prev) => prev.some((s) => s.id === preloadService.id) ? prev : [...prev, preloadService]);
+    setSelectionOrder((prev) => {
+      if (prev.includes(preloadService.id)) { return prev; }
+      return prev.length < 2 ? [...prev, preloadService.id] : [prev[1], preloadService.id];
+    });
+    onPreloadConsumed?.();
+  }, [preloadService, hydrated, onPreloadConsumed]);
 
   // Persist order
   useEffect(() => {

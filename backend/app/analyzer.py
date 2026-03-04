@@ -649,6 +649,19 @@ def _normalize(data: dict) -> dict:
     warnings = _normalize_findings(data.get("warnings", []))
     positives = _normalize_findings(data.get("positives", []))
 
+    # Normalize alternatives (LLM only provides these for D/F grades)
+    raw_alts = data.get("alternatives", [])
+    alternatives = []
+    if isinstance(raw_alts, list):
+        for alt in raw_alts[:3]:
+            if isinstance(alt, dict) and alt.get("name"):
+                url = str(alt.get("url", ""))
+                alternatives.append({
+                    "name": str(alt["name"])[:60],
+                    "description": str(alt.get("description", ""))[:100],
+                    "url": url if url.startswith("http") else "",
+                })
+
     return {
         "grade": overall_grade,
         "summary": highlights[0] if highlights else "Analysis complete.",
@@ -657,33 +670,42 @@ def _normalize(data: dict) -> dict:
         "positives": positives[:3],
         "categories": categories,
         "highlights": highlights[:5],
+        "alternatives": alternatives,
     }
 
 
 async def find_privacy_policy_url(website_url: str) -> str | None:
     logger.info("Discovering privacy policy URL for %s", website_url)
-    try:
-        homepage_text, _ = await fetch_text(website_url, max_chars=5000)
-    except Exception:
-        logger.warning("Could not fetch homepage for %s", website_url)
-        return None
+    for attempt in range(2):
+        try:
+            homepage_text, _ = await fetch_text(website_url, max_chars=5000)
+        except Exception:
+            logger.warning("[Attempt %d] Could not fetch homepage for %s", attempt + 1, website_url)
+            if attempt == 0:
+                await asyncio.sleep(2)
+            continue
 
-    try:
-        raw = await _llm_call(
-            system=FIND_URL_SYSTEM,
-            user=FIND_URL_USER.format(website_url=website_url, homepage_text=homepage_text),
-            max_tokens=200,
-        )
-    except LLMUnavailableError:
-        logger.warning("LLM unavailable for URL discovery of %s, returning None", website_url)
-        return None
+        try:
+            raw = await _llm_call(
+                system=FIND_URL_SYSTEM,
+                user=FIND_URL_USER.format(website_url=website_url, homepage_text=homepage_text),
+                max_tokens=200,
+            )
+        except LLMUnavailableError:
+            logger.warning("LLM unavailable for URL discovery of %s, returning None", website_url)
+            return None
 
-    result = raw.strip()
-    if result == "NOT_FOUND" or not result.startswith("http"):
-        logger.info("No privacy policy URL found for %s", website_url)
-        return None
-    logger.info("Found privacy policy URL for %s → %s", website_url, result)
-    return result
+        result = raw.strip()
+        if result != "NOT_FOUND" and result.startswith("http"):
+            logger.info("Found privacy policy URL for %s → %s", website_url, result)
+            return result
+
+        logger.info("[Attempt %d] No privacy policy URL found for %s (got %r)", attempt + 1, website_url, result[:60])
+        if attempt == 0:
+            await asyncio.sleep(2)
+
+    logger.warning("Could not find privacy policy URL for %s after 2 attempts", website_url)
+    return None
 
 
 async def analyze_policy(privacy_policy_url: str, service_name: str = "") -> dict:
@@ -725,6 +747,44 @@ async def analyze_policy(privacy_policy_url: str, service_name: str = "") -> dic
     result["policy_text"] = policy_text
     result["was_truncated"] = was_truncated
     logger.info("Analysis complete for %s → grade=%s", privacy_policy_url, result["grade"])
+    return result
+
+
+async def analyze_text(policy_text: str, service_name: str = "") -> dict:
+    """Analyze a privacy policy from provided text, skipping the fetch step."""
+    logger.info("Analyzing provided text for '%s' (%d chars)", service_name, len(policy_text))
+    was_truncated = len(policy_text) > 80000
+    policy_text = policy_text[:80000]
+
+    try:
+        raw = await _llm_call(
+            system=GRADING_RUBRIC,
+            user=ANALYSIS_USER_PROMPT.format(policy_text=policy_text[:60000]),
+            max_tokens=2048,
+        )
+    except LLMUnavailableError:
+        logger.warning("LLM unavailable, returning mock analysis for '%s'", service_name)
+        return get_mock_analysis(service_name)
+
+    raw = re.sub(r"^```(?:json)?\s*", "", raw)
+    raw = re.sub(r"\s*```$", "", raw)
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if match:
+            try:
+                data = json.loads(match.group())
+            except json.JSONDecodeError:
+                return _empty_result("Analysis failed — could not parse response.")
+        else:
+            return _empty_result("Analysis failed — could not parse response.")
+
+    result = _normalize(data)
+    result["policy_text"] = policy_text
+    result["was_truncated"] = was_truncated
+    logger.info("Text analysis complete for '%s' → grade=%s", service_name, result["grade"])
     return result
 
 
