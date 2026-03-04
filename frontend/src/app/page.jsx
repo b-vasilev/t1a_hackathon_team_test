@@ -400,6 +400,57 @@ export default function Home() {
           ))}
         </div>
 
+        {/* Why it matters — stat banner */}
+        <div
+          className="relative z-1"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '14px',
+            padding: '16px 24px',
+            marginTop: '8px',
+            borderRadius: '14px',
+            border: '1px solid var(--pl-border)',
+            background: 'linear-gradient(135deg, var(--pl-surface) 0%, rgba(0, 229, 255, 0.03) 100%)',
+            animation: 'fadeInUp 0.5s ease forwards',
+            animationDelay: '0.9s',
+            opacity: 0,
+          }}
+        >
+          <span
+            style={{
+              fontSize: '2rem',
+              fontWeight: 700,
+              fontFamily: 'var(--font-heading)',
+              color: 'var(--pl-accent)',
+              lineHeight: 1,
+            }}
+          >
+            91%
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span
+              style={{
+                fontSize: '0.88rem',
+                color: 'var(--pl-text)',
+                fontWeight: 500,
+              }}
+            >
+              of users accept privacy policies without reading them
+            </span>
+            <span
+              style={{
+                fontSize: '0.68rem',
+                color: 'var(--pl-text-dim)',
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              Source: Deloitte, 2017
+            </span>
+          </div>
+        </div>
+
         {/* Scroll-down chevron */}
         <button
           onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })}
@@ -421,52 +472,6 @@ export default function Home() {
           </svg>
         </button>
       </header>
-
-      {/* Why it matters — stat banner */}
-      <section
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '14px',
-          padding: '16px 24px',
-          borderRadius: '14px',
-          border: '1px solid var(--pl-border)',
-          background: 'linear-gradient(135deg, var(--pl-surface) 0%, rgba(0, 229, 255, 0.03) 100%)',
-        }}
-      >
-        <span
-          style={{
-            fontSize: '2rem',
-            fontWeight: 700,
-            fontFamily: 'var(--font-heading)',
-            color: 'var(--pl-accent)',
-            lineHeight: 1,
-          }}
-        >
-          91%
-        </span>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <span
-            style={{
-              fontSize: '0.88rem',
-              color: 'var(--pl-text)',
-              fontWeight: 500,
-            }}
-          >
-            of users accept privacy policies without reading them
-          </span>
-          <span
-            style={{
-              fontSize: '0.68rem',
-              color: 'var(--pl-text-dim)',
-              fontFamily: 'var(--font-mono)',
-            }}
-          >
-            Source: Deloitte, 2017
-          </span>
-        </div>
-      </section>
 
       {/* Service selection */}
       <section id="services" className="flex flex-col gap-4">

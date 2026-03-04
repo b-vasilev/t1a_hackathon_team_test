@@ -136,18 +136,18 @@ const styles = StyleSheet.create({
   },
   categoryCard: {
     width: '48%',
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   categoryAccentBar: {
-    height: 3,
+    height: 4,
   },
   categoryCardBody: {
     backgroundColor: SURFACE,
-    padding: 12,
-    paddingTop: 10,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
+    padding: 14,
+    paddingTop: 12,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
     borderWidth: 1,
     borderTopWidth: 0,
     borderColor: BORDER,
@@ -157,25 +157,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   categoryName: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 700,
     color: TEXT_WHITE,
   },
   categoryGradeBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderStyle: 'solid',
   },
   categoryGrade: {
     fontFamily: 'JetBrains Mono',
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: 700,
   },
   categoryFinding: {
-    fontSize: 8,
+    fontSize: 9,
     color: TEXT_MUTED,
     lineHeight: 1.6,
     marginTop: 2,
@@ -646,7 +650,7 @@ export default function PolicyReport({ result, policyText }) {
                         <Text style={styles.categoryName}>
                           {key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                         </Text>
-                        <View style={[styles.categoryGradeBadge, { backgroundColor: `${gradeColor}22` }]}>
+                        <View style={[styles.categoryGradeBadge, { backgroundColor: `${gradeColor}18`, borderColor: gradeColor }]}>
                           <Text style={[styles.categoryGrade, { color: gradeColor }]}>
                             {cat.grade}
                           </Text>
