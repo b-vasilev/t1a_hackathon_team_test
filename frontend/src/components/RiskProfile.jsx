@@ -469,6 +469,8 @@ function ShareModal({ url, onClose }) {
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      // Fallback: select the input text for manual copy
     });
   };
 
@@ -571,6 +573,7 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
   };
 
   const handleShare = async () => {
+    if (shareUrl) { return; }
     setSharing(true);
     try {
       const res = await fetch('/api/reports', {
@@ -581,7 +584,11 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
       if (res.ok) {
         const data = await res.json();
         setShareUrl(`${window.location.origin}/report/${data.id}`);
+      } else {
+        alert('Failed to create shareable link. Please try again.');
       }
+    } catch {
+      alert('Network error. Please check your connection and try again.');
     } finally {
       setSharing(false);
     }

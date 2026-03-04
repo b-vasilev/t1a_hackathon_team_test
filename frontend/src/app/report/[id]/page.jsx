@@ -5,7 +5,13 @@ async function fetchReport(id) {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
   try {
     const res = await fetch(`${backendUrl}/api/reports/${id}`, { cache: 'no-store' });
-    return { status: res.status, data: res.ok ? await res.json() : null };
+    if (res.ok) {
+      return { status: res.status, data: await res.json() };
+    }
+    // Preserve error detail from non-ok responses
+    let detail = null;
+    try { detail = await res.json(); } catch { /* ignore parse errors */ }
+    return { status: res.status, data: null, detail };
   } catch {
     return { status: 503, data: null };
   }

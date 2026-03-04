@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -68,5 +68,5 @@ class SharedReport(Base):
     overall_grade: Mapped[str] = mapped_column(String(8), nullable=False)
     results_json: Mapped[str] = mapped_column(Text, nullable=False)  # JSON array
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc)
+        DateTime, default=lambda: datetime.now(timezone.utc), server_default=func.now()
     )

@@ -1,6 +1,12 @@
+const REPORT_ID_RE = /^[a-f0-9]{12}$/;
+
 export async function GET(request, { params }) {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
   const { id } = await params;
+
+  if (!REPORT_ID_RE.test(id)) {
+    return Response.json({ detail: 'Invalid report ID format' }, { status: 400 });
+  }
 
   let res;
   try {

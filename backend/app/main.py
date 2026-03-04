@@ -7,10 +7,10 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Path, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -638,18 +638,54 @@ async def get_policy_text(
 # ── Shared Reports ────────────────────────────────────────────────────────────
 
 
+VALID_GRADES = {"A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "F", "N/A"}
+
+
+class ReportResultItem(BaseModel):
+    service_id: int | None = None
+    name: str = Field(max_length=200)
+    grade: str
+    icon: str | None = None
+    summary: str | None = None
+    red_flags: list = Field(default_factory=list)
+    warnings: list = Field(default_factory=list)
+    positives: list = Field(default_factory=list)
+    categories: dict = Field(default_factory=dict)
+    highlights: list = Field(default_factory=list)
+    actions: list = Field(default_factory=list)
+    cached: bool | None = None
+    mock: bool | None = None
+
+
 class CreateReportRequest(BaseModel):
-    overall_grade: str
-    results: list[dict]
+    overall_grade: str = Field(max_length=3)
+    results: list[ReportResultItem] = Field(max_length=50)
+
+    @field_validator("overall_grade")
+    @classmethod
+    def validate_grade(cls, v: str) -> str:
+        if v not in VALID_GRADES:
+            raise ValueError(f"Invalid grade: {v}")
+        return v
+
+
+REPORT_ID_PATTERN = r"^[a-f0-9]{12}$"
 
 
 @app.post("/api/reports", status_code=201)
 async def create_report(req: CreateReportRequest, db: AsyncSession = Depends(get_db)):
-    report_id = uuid4().hex[:12]
+    for _ in range(5):
+        report_id = uuid4().hex[:12]
+        existing = await db.execute(select(SharedReport).where(SharedReport.id == report_id))
+        if existing.scalar_one_or_none() is None:
+            break
+    else:
+        raise HTTPException(status_code=500, detail="Failed to generate unique report ID")
+
     report = SharedReport(
         id=report_id,
         overall_grade=req.overall_grade,
-        results_json=json.dumps(req.results),
+        results_json=json.dumps([r.model_dump(exclude_none=True) for r in req.results]),
     )
     db.add(report)
     await db.commit()
@@ -657,7 +693,10 @@ async def create_report(req: CreateReportRequest, db: AsyncSession = Depends(get
 
 
 @app.get("/api/reports/{report_id}")
-async def get_report(report_id: str, db: AsyncSession = Depends(get_db)):
+async def get_report(
+    report_id: str = Path(pattern=REPORT_ID_PATTERN),
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(select(SharedReport).where(SharedReport.id == report_id))
     report = result.scalar_one_or_none()
     if not report:

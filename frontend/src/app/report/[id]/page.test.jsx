@@ -49,7 +49,7 @@ describe("SharedReportPage", () => {
       json: async () => mockReport,
     });
 
-    const jsx = await SharedReportPage({ params: { id: "abc123def456" } });
+    const jsx = await SharedReportPage({ params: Promise.resolve({ id: "abc123def456" }) });
     render(jsx);
 
     expect(screen.getByTestId("shared-banner")).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("SharedReportPage", () => {
       json: async () => ({ detail: "Report not found" }),
     });
 
-    const jsx = await SharedReportPage({ params: { id: "notexist" } });
+    const jsx = await SharedReportPage({ params: Promise.resolve({ id: "notexist" }) });
     render(jsx);
 
     expect(screen.getByTestId("not-found-message")).toBeInTheDocument();
@@ -75,7 +75,7 @@ describe("SharedReportPage", () => {
   it("shows unable to load message when fetch throws", async () => {
     global.fetch = vi.fn().mockRejectedValueOnce(new Error("ECONNREFUSED"));
 
-    const jsx = await SharedReportPage({ params: { id: "someid" } });
+    const jsx = await SharedReportPage({ params: Promise.resolve({ id: "someid" }) });
     render(jsx);
 
     expect(screen.getByTestId("error-message")).toBeInTheDocument();
@@ -89,7 +89,7 @@ describe("SharedReportPage", () => {
       json: async () => mockReport,
     });
 
-    const jsx = await SharedReportPage({ params: { id: "abc123def456" } });
+    const jsx = await SharedReportPage({ params: Promise.resolve({ id: "abc123def456" }) });
     render(jsx);
 
     expect(screen.queryByTestId("rp-rescan")).not.toBeInTheDocument();
