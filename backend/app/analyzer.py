@@ -8,6 +8,7 @@ import litellm
 from bs4 import BeautifulSoup
 from curl_cffi.requests import AsyncSession
 
+from .mock_data import get_mock_actions, get_mock_analysis
 from .prompts import (
     ACTIONS_SYSTEM,
     ACTIONS_USER_PROMPT,
@@ -22,6 +23,11 @@ LLM_API_KEY = os.getenv("LLM_API_KEY")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 
 logger = logging.getLogger("policylens.analyzer")
+
+
+class LLMUnavailableError(Exception):
+    """Raised when the LLM API is unreachable."""
+
 
 GPA_MAP = {
     "A+": 4.3,
@@ -194,7 +200,11 @@ async def _llm_call(system: str, user: str, max_tokens: int = 1024) -> str:
         kwargs["api_key"] = LLM_API_KEY
     if LLM_BASE_URL:
         kwargs["api_base"] = LLM_BASE_URL
-    response = await litellm.acompletion(**kwargs)
+    try:
+        response = await litellm.acompletion(**kwargs)
+    except Exception as e:
+        logger.error("LLM API unreachable: %s: %s", type(e).__name__, e)
+        raise LLMUnavailableError(str(e)) from e
     usage = response.usage
     logger.info(
         "LLM call completed | tokens: prompt=%d completion=%d total=%d",
@@ -265,11 +275,15 @@ async def find_privacy_policy_url(website_url: str) -> str | None:
         logger.warning("Could not fetch homepage for %s", website_url)
         return None
 
-    raw = await _llm_call(
-        system=FIND_URL_SYSTEM,
-        user=FIND_URL_USER.format(website_url=website_url, homepage_text=homepage_text),
-        max_tokens=200,
-    )
+    try:
+        raw = await _llm_call(
+            system=FIND_URL_SYSTEM,
+            user=FIND_URL_USER.format(website_url=website_url, homepage_text=homepage_text),
+            max_tokens=200,
+        )
+    except LLMUnavailableError:
+        logger.warning("LLM unavailable for URL discovery of %s, returning None", website_url)
+        return None
 
     result = raw.strip()
     if result == "NOT_FOUND" or not result.startswith("http"):
@@ -279,7 +293,7 @@ async def find_privacy_policy_url(website_url: str) -> str | None:
     return result
 
 
-async def analyze_policy(privacy_policy_url: str) -> dict:
+async def analyze_policy(privacy_policy_url: str, service_name: str = "") -> dict:
     logger.info("Analyzing policy: %s", privacy_policy_url)
     try:
         policy_text = await fetch_text(privacy_policy_url, max_chars=80000)
@@ -287,11 +301,15 @@ async def analyze_policy(privacy_policy_url: str) -> dict:
         logger.error("Failed to fetch policy %s: %s", privacy_policy_url, e)
         return _empty_result(f"Could not fetch privacy policy: {e}")
 
-    raw = await _llm_call(
-        system=GRADING_RUBRIC,
-        user=ANALYSIS_USER_PROMPT.format(policy_text=policy_text[:60000]),
-        max_tokens=2048,
-    )
+    try:
+        raw = await _llm_call(
+            system=GRADING_RUBRIC,
+            user=ANALYSIS_USER_PROMPT.format(policy_text=policy_text[:60000]),
+            max_tokens=2048,
+        )
+    except LLMUnavailableError:
+        logger.warning("LLM unavailable, returning mock analysis for %s", service_name)
+        return get_mock_analysis(service_name)
 
     # Strip markdown code fences if present
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
@@ -328,15 +346,19 @@ async def get_service_actions(service_name: str, website_url: str) -> list[dict]
         # Extract domain for prompt context
         domain = urlparse(website_url).netloc or website_url
 
-        raw = await _llm_call(
-            system=ACTIONS_SYSTEM,
-            user=ACTIONS_USER_PROMPT.format(
-                service_name=service_name,
-                domain=domain,
-                search_results=search_results[:15000],
-            ),
-            max_tokens=1024,
-        )
+        try:
+            raw = await _llm_call(
+                system=ACTIONS_SYSTEM,
+                user=ACTIONS_USER_PROMPT.format(
+                    service_name=service_name,
+                    domain=domain,
+                    search_results=search_results[:15000],
+                ),
+                max_tokens=1024,
+            )
+        except LLMUnavailableError:
+            logger.warning("LLM unavailable, returning mock actions for %s", service_name)
+            return get_mock_actions(service_name)
 
         # Strip markdown code fences if present
         raw = re.sub(r"^```(?:json)?\s*", "", raw)

@@ -265,7 +265,7 @@ async def analyze_services(
 
             try:
                 analysis_data, actions_data = await asyncio.gather(
-                    analyze_policy(privacy_policy_url),
+                    analyze_policy(privacy_policy_url, service_name=svc_name),
                     get_service_actions(svc_name, svc_website_url),
                 )
             except Exception as e:
@@ -313,6 +313,7 @@ async def analyze_services(
                 "highlights": analysis_data.get("highlights", []),
                 "actions": actions_data,
                 "cached": False,
+                "mock": analysis_data.get("mock", False),
             }
 
     # Run analyses concurrently — pass scalar values so each coroutine can use its own session

@@ -115,6 +115,35 @@ docker compose down
 docker compose down -v
 ```
 
+## Testing
+
+### Commands
+
+```bash
+# Run all tests (backend + frontend)
+just test
+
+# Backend tests with coverage
+cd backend && python -m pytest app/ -v --cov=app --cov-report=term-missing
+
+# Frontend tests
+cd frontend && npm test
+
+# Frontend tests in watch mode
+cd frontend && npm run test:watch
+```
+
+### Coverage Thresholds
+
+- **Backend: 70% line coverage** — enforce with `--cov-fail-under=70`
+- **Frontend: 70% line coverage** — enforce with `vitest run --coverage --coverage.thresholds.lines=70`
+- Always run `just test` after writing or modifying code
+- When adding new features, write tests alongside the implementation
+- Mock external dependencies (LiteLLM calls, HTTP fetching, `fetch()`) — never make real API calls in tests
+- Place backend tests in `backend/tests/` using the `test_*.py` naming convention
+- Place frontend tests next to their source files as `ComponentName.test.js` or in `__tests__/` directories
+- Frontend stack: **Vitest + React Testing Library + jsdom** (`frontend/vitest.config.js`)
+
 ## Code Review Pipeline
 
 After completing each feature or code change, run a code review:

@@ -31,7 +31,8 @@ fmt:
 
 # Run tests
 test:
-    cd backend && python -m pytest app/ -v
+    cd backend && python -m pytest tests/ -v
+    cd frontend && npm test
 
 # Format + lint all
 check: fmt lint

@@ -268,12 +268,32 @@ function ServiceCard({ result, onRescan, isLoading }) {
 export default function RiskProfile({ overallGrade, results, onRescanService, onClearCache, isLoading }) {
   if (!results || results.length === 0) { return null; }
 
+  const hasMockResults = results.some((r) => r.mock);
   const totalRedFlags = results.reduce((n, r) => n + (r.red_flags?.length || 0), 0);
   const totalWarnings = results.reduce((n, r) => n + (r.warnings?.length || 0), 0);
   const totalClean = results.reduce((n, r) => n + (r.positives?.length || 0), 0);
 
   return (
     <div className="flex flex-col gap-6" style={{ animation: 'fadeInUp 0.5s ease forwards' }}>
+      {hasMockResults && (
+        <div
+          data-testid="mock-banner"
+          className="rounded-xl px-4 py-3 flex items-center gap-3 text-sm"
+          style={{
+            background: 'rgba(0, 210, 255, 0.08)',
+            border: '1px solid rgba(0, 210, 255, 0.2)',
+            color: 'var(--pl-text-muted)',
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--pl-accent)', flexShrink: 0 }}>
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          <span>AI analysis temporarily unavailable &mdash; showing example results for demonstration purposes.</span>
+        </div>
+      )}
+
       {/* Overall grade */}
       <div
         className="rounded-2xl p-6 flex flex-col sm:flex-row items-center gap-6 noise-bg"

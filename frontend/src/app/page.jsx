@@ -161,23 +161,38 @@ export default function Home() {
 
   return (
     <main className="max-w-5xl mx-auto px-4 py-10 flex flex-col gap-12">
-      {/* Header */}
-      <header className="scan-line relative py-8 flex flex-col gap-3 text-center">
+      {/* Hero */}
+      <header className="hero-section scan-line relative py-12 md:py-16 flex flex-col gap-4 text-center items-center">
         <h1
-          className="text-4xl font-bold tracking-tight"
-          style={{
-            fontFamily: 'var(--font-heading)',
-            background: 'linear-gradient(135deg, var(--pl-accent), #a78bfa, var(--pl-accent))',
-            backgroundSize: '200% auto',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}
+          className="hero-title text-5xl md:text-6xl font-bold tracking-tight relative z-1"
+          style={{ fontFamily: 'var(--font-heading)' }}
         >
           PolicyLens
         </h1>
-        <p style={{ color: 'var(--pl-text-muted)', fontSize: '1.15rem' }}>
+        <p
+          className="text-2xl md:text-3xl font-semibold tracking-tight relative z-1"
+          style={{
+            fontFamily: 'var(--font-heading)',
+            color: 'var(--pl-text)',
+            animation: 'fadeInUp 0.6s ease forwards',
+            animationDelay: '0.1s',
+            opacity: 0,
+          }}
+        >
           Know what you&apos;re agreeing to
+        </p>
+        <p
+          className="max-w-md relative z-1"
+          style={{
+            color: 'var(--pl-text-muted)',
+            fontSize: '1.05rem',
+            lineHeight: 1.6,
+            animation: 'fadeInUp 0.6s ease forwards',
+            animationDelay: '0.25s',
+            opacity: 0,
+          }}
+        >
+          AI-powered privacy policy analysis that grades the services you use every day.
         </p>
         <div className="flex justify-center items-center gap-0 mt-4">
           {/* Step 1 */}

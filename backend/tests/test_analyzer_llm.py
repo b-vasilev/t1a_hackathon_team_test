@@ -1,0 +1,181 @@
+import json
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from app.analyzer import analyze_policy, find_privacy_policy_url, get_service_actions
+
+
+@pytest.mark.asyncio
+class TestFindPrivacyPolicyUrl:
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock)
+    @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
+    async def test_found(self, mock_fetch, mock_llm):
+        mock_fetch.return_value = "Homepage text with privacy link"
+        mock_llm.return_value = "https://example.com/privacy"
+        result = await find_privacy_policy_url("https://example.com")
+        assert result == "https://example.com/privacy"
+
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock)
+    @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
+    async def test_not_found(self, mock_fetch, mock_llm):
+        mock_fetch.return_value = "Homepage text"
+        mock_llm.return_value = "NOT_FOUND"
+        result = await find_privacy_policy_url("https://example.com")
+        assert result is None
+
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock)
+    @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
+    async def test_non_http_result(self, mock_fetch, mock_llm):
+        mock_fetch.return_value = "Homepage text"
+        mock_llm.return_value = "no-url-here"
+        result = await find_privacy_policy_url("https://example.com")
+        assert result is None
+
+    @patch("app.analyzer.fetch_text", new_callable=AsyncMock, side_effect=RuntimeError("fetch failed"))
+    async def test_fetch_failure(self, mock_fetch):
+        result = await find_privacy_policy_url("https://example.com")
+        assert result is None
+
+
+@pytest.mark.asyncio
+class TestAnalyzePolicy:
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock)
+    @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
+    async def test_valid_json(self, mock_fetch, mock_llm):
+        mock_fetch.return_value = "Privacy policy text..."
+        mock_llm.return_value = json.dumps(
+            {
+                "categories": {
+                    "data_collection": {"grade": "B", "finding": "Collects email"},
+                    "data_sharing": {"grade": "B", "finding": "Shares with partners"},
+                    "data_retention": {"grade": "B", "finding": "Retains 2 years"},
+                    "tracking": {"grade": "B", "finding": "Uses cookies"},
+                    "user_rights": {"grade": "B", "finding": "Can request deletion"},
+                },
+                "highlights": ["Decent policy overall"],
+                "red_flags": ["Shares data with third parties"],
+                "warnings": ["Cookie tracking"],
+                "positives": ["Allows data deletion"],
+            }
+        )
+        result = await analyze_policy("https://example.com/privacy")
+        assert result["grade"] == "B"
+        assert len(result["red_flags"]) == 1
+        assert len(result["positives"]) == 1
+
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock)
+    @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
+    async def test_markdown_fenced_json(self, mock_fetch, mock_llm):
+        mock_fetch.return_value = "Policy text"
+        raw_json = json.dumps(
+            {
+                "categories": {
+                    "data_collection": {"grade": "A", "finding": "x"},
+                    "data_sharing": {"grade": "A", "finding": "x"},
+                    "data_retention": {"grade": "A", "finding": "x"},
+                    "tracking": {"grade": "A", "finding": "x"},
+                    "user_rights": {"grade": "A", "finding": "x"},
+                },
+                "highlights": ["Great policy"],
+                "red_flags": [],
+                "warnings": [],
+                "positives": ["Very transparent"],
+            }
+        )
+        mock_llm.return_value = f"```json\n{raw_json}\n```"
+        result = await analyze_policy("https://example.com/privacy")
+        assert result["grade"] == "A"
+
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock)
+    @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
+    async def test_unparseable_response(self, mock_fetch, mock_llm):
+        mock_fetch.return_value = "Policy text"
+        mock_llm.return_value = "This is not JSON at all"
+        result = await analyze_policy("https://example.com/privacy")
+        assert result["grade"] == "N/A"
+        assert "could not parse" in result["summary"].lower()
+
+    @patch("app.analyzer.fetch_text", new_callable=AsyncMock, side_effect=RuntimeError("fetch failed"))
+    async def test_fetch_failure(self, mock_fetch):
+        result = await analyze_policy("https://example.com/privacy")
+        assert result["grade"] == "N/A"
+        assert "could not fetch" in result["summary"].lower()
+
+
+@pytest.mark.asyncio
+class TestGetServiceActions:
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock)
+    @patch("app.analyzer._search_web", new_callable=AsyncMock)
+    async def test_valid_actions(self, mock_search, mock_llm):
+        mock_search.return_value = "Search results about deleting account..."
+        mock_llm.return_value = json.dumps(
+            {
+                "actions": [
+                    {
+                        "label": "Delete Account",
+                        "description": "Permanently delete your account",
+                        "url": "https://www.example.com/settings/delete",
+                        "category": "deletion",
+                        "source": "https://help.example.com/delete",
+                    }
+                ]
+            }
+        )
+        result = await get_service_actions("Example", "https://www.example.com")
+        assert len(result) == 1
+        assert result[0]["label"] == "Delete Account"
+
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock)
+    @patch("app.analyzer._search_web", new_callable=AsyncMock)
+    async def test_off_domain_filtered(self, mock_search, mock_llm):
+        mock_search.return_value = "Search results"
+        mock_llm.return_value = json.dumps(
+            {
+                "actions": [
+                    {
+                        "label": "Delete Account",
+                        "url": "https://www.other-site.com/delete",
+                        "category": "deletion",
+                    },
+                    {
+                        "label": "Privacy Settings",
+                        "url": "https://www.example.com/privacy",
+                        "category": "privacy_settings",
+                    },
+                ]
+            }
+        )
+        result = await get_service_actions("Example", "https://www.example.com")
+        assert len(result) == 1
+        assert result[0]["label"] == "Privacy Settings"
+
+    @patch("app.analyzer._search_web", new_callable=AsyncMock, return_value="")
+    async def test_no_search_results(self, mock_search):
+        result = await get_service_actions("Example", "https://www.example.com")
+        assert result == []
+
+    @patch("app.analyzer._search_web", new_callable=AsyncMock, side_effect=Exception("boom"))
+    async def test_exception_returns_empty(self, mock_search):
+        result = await get_service_actions("Example", "https://www.example.com")
+        assert result == []
+
+    @patch("app.analyzer._llm_call", new_callable=AsyncMock)
+    @patch("app.analyzer._search_web", new_callable=AsyncMock)
+    async def test_missing_required_fields_skipped(self, mock_search, mock_llm):
+        mock_search.return_value = "Search results"
+        mock_llm.return_value = json.dumps(
+            {
+                "actions": [
+                    {"label": "No URL field", "category": "deletion"},
+                    {
+                        "label": "Valid",
+                        "url": "https://www.example.com/delete",
+                        "category": "deletion",
+                    },
+                ]
+            }
+        )
+        result = await get_service_actions("Example", "https://www.example.com")
+        assert len(result) == 1
+        assert result[0]["label"] == "Valid"
