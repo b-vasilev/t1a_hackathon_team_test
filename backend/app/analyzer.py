@@ -13,6 +13,7 @@ from .prompts import (
     ACTIONS_SYSTEM,
     ACTIONS_USER_PROMPT,
     ANALYSIS_USER_PROMPT,
+    CHAT_SYSTEM,
     FIND_URL_SYSTEM,
     FIND_URL_USER,
     GRADING_RUBRIC,
@@ -215,6 +216,41 @@ async def _llm_call(system: str, user: str, max_tokens: int = 1024) -> str:
     return response.choices[0].message.content.strip()
 
 
+async def _llm_chat_call(system: str, messages: list[dict], max_tokens: int = 512) -> str:
+    """Like _llm_call but accepts a multi-turn messages list for chat."""
+    logger.info("LLM chat call starting | model=%s | max_tokens=%d | turns=%d", LLM_MODEL, max_tokens, len(messages))
+    full_messages = [{"role": "system", "content": system}, *messages]
+    kwargs = dict(
+        model=LLM_MODEL,
+        messages=full_messages,
+        max_tokens=max_tokens,
+        temperature=0.2,
+    )
+    if LLM_API_KEY:
+        kwargs["api_key"] = LLM_API_KEY
+    if LLM_BASE_URL:
+        kwargs["api_base"] = LLM_BASE_URL
+    try:
+        response = await litellm.acompletion(**kwargs)
+    except Exception as e:
+        logger.error("LLM API unreachable (chat): %s: %s", type(e).__name__, e)
+        raise LLMUnavailableError(str(e)) from e
+    usage = response.usage
+    logger.info(
+        "LLM chat call completed | tokens: prompt=%d completion=%d total=%d",
+        usage.prompt_tokens,
+        usage.completion_tokens,
+        usage.total_tokens,
+    )
+    return response.choices[0].message.content.strip()
+
+
+async def chat_about_policy(service_name: str, grade: str, policy_text: str, messages: list[dict]) -> str:
+    """Answer user questions about a specific privacy policy."""
+    system_prompt = CHAT_SYSTEM.format(service_name=service_name, grade=grade, policy_text=policy_text)
+    return await _llm_chat_call(system=system_prompt, messages=messages)
+
+
 def _empty_result(summary: str) -> dict:
     return {
         "grade": "N/A",
@@ -224,6 +260,7 @@ def _empty_result(summary: str) -> dict:
         "positives": [],
         "categories": {},
         "highlights": [],
+        "policy_text": None,
     }
 
 
@@ -329,6 +366,7 @@ async def analyze_policy(privacy_policy_url: str, service_name: str = "") -> dic
             return _empty_result("Analysis failed — could not parse response.")
 
     result = _normalize(data)
+    result["policy_text"] = policy_text
     logger.info("Analysis complete for %s → grade=%s", privacy_policy_url, result["grade"])
     return result
 

@@ -35,6 +35,7 @@ class PolicyAnalysis(Base):
     highlights: Mapped[str] = mapped_column(Text, default="[]")  # JSON
     positives: Mapped[str] = mapped_column(Text, default="[]")  # JSON
     actions: Mapped[str] = mapped_column(Text, default="[]")  # JSON
+    policy_text: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     analyzed_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     service: Mapped["Service"] = relationship("Service", back_populates="analyses")
