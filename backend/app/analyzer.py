@@ -769,7 +769,10 @@ async def analyze_policy_text(text: str, service_name: str = "") -> dict:
         )
     except LLMUnavailableError:
         logger.warning("LLM unavailable for raw text analysis of '%s'", service_name)
-        return get_mock_analysis(service_name)
+        mock = get_mock_analysis(service_name)
+        mock["policy_text"] = text
+        mock["was_truncated"] = len(text) > 60000
+        return mock
 
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw)

@@ -280,3 +280,6 @@ class TestAnalyzePolicyText:
         result = await analyze_policy_text(LONG_TEXT, service_name="TestService")
         # Should return a mock result, not raise
         assert "grade" in result
+        assert result.get("mock") is True
+        assert "policy_text" in result
+        assert "was_truncated" in result

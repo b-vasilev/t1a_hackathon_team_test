@@ -1,6 +1,11 @@
 export async function POST(request) {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
-  const body = await request.json();
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ detail: 'Invalid JSON body' }, { status: 400 });
+  }
   let res;
   try {
     res = await fetch(`${backendUrl}/api/analyze-text`, {

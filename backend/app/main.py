@@ -408,6 +408,8 @@ class AnalyzeTextRequest(BaseModel):
         v = v.strip()
         if not v or len(v) < 50:
             raise ValueError("text must be at least 50 characters")
+        if len(v) > 200_000:
+            raise ValueError("text must not exceed 200,000 characters")
         return v
 
     @field_validator("name")
@@ -424,7 +426,7 @@ async def analyze_text(req: AnalyzeTextRequest, request: Request):
         data = await analyze_policy_text(req.text, service_name=req.name)
     except Exception as e:
         logger.error("Raw text analysis error: %s", e)
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+        raise HTTPException(status_code=500, detail="Analysis failed. Please try again later.")
 
     result = {
         "service_id": None,

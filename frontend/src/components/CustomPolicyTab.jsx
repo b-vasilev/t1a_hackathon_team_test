@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import RiskProfile from '@/components/RiskProfile';
 
 const SS_KEYS = {
@@ -48,10 +48,13 @@ export default function CustomPolicyTab() {
     setHydrated(true);
   }, []);
 
-  // Persist text
+  // Persist text (debounced to avoid lag on large inputs)
+  const debounceRef = useRef(null);
   useEffect(() => {
     if (!hydrated) { return; }
-    saveToSession(SS_KEYS.text, policyText);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => saveToSession(SS_KEYS.text, policyText), 500);
+    return () => clearTimeout(debounceRef.current);
   }, [policyText, hydrated]);
 
   // Persist name
@@ -177,7 +180,7 @@ export default function CustomPolicyTab() {
             </span>
             {showTruncationWarning && (
               <span style={{ color: 'var(--pl-grade-c)' }}>
-                Text exceeds 60k chars — only the first 60,000 will be analyzed
+                Approaching 60k character limit — only the first 60,000 will be analyzed
               </span>
             )}
           </div>
