@@ -7,7 +7,6 @@ node_modules/
 build/
 __pycache__/
 *.pyc
-CLAUDE.md
 *.egg-info
 /tmp
 /data/
