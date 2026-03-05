@@ -1,3 +1,5 @@
+'use client';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import ServiceGrid from '@/components/ServiceGrid';
 import AddService from '@/components/AddService';
@@ -245,7 +247,6 @@ export default function Home() {
 
   const hasSelection = selectedIds.size > 0;
 
-export default function LandingPage() {
   return (
     <main className="max-w-5xl mx-auto px-4 py-10 flex flex-col gap-12">
       {/* Tab switcher */}
@@ -275,7 +276,7 @@ export default function LandingPage() {
       </div>
 
       {/* Hero */}
-      <header className="hero-section scan-line relative flex flex-col gap-5 text-center items-center" style={{ width: '100%', maxWidth: '720px' }}>
+      <header className="hero-section scan-line relative flex flex-col gap-5 text-center items-center self-center" style={{ width: '100%', maxWidth: '720px' }}>
         <Image
           src="/policy-icon.svg"
           alt="PrivacyLens icon"
@@ -373,7 +374,7 @@ export default function LandingPage() {
           animationDelay: '0.4s',
           opacity: 0,
         }}
-        className="hero-steps-grid"
+        className="hero-steps-grid self-center"
       >
         {[
           {
@@ -441,12 +442,14 @@ export default function LandingPage() {
               {step.desc}
             </span>
           </div>
+        ))}
         </div>
 
         {/* Scroll-down chevron */}
         <button
           onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })}
           aria-label="Scroll to services"
+          className="self-center"
           style={{
             marginTop: '20px',
             background: 'none',
@@ -463,7 +466,6 @@ export default function LandingPage() {
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>
-      </header>
 
       {activeTab === 'analyze' && (
         <>
@@ -632,42 +634,6 @@ export default function LandingPage() {
       {activeTab === 'custom' && (
         <CustomPolicyTab />
       )}
-
-      {/* CTA */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '12px',
-          animation: 'fadeInUp 0.5s ease forwards',
-          animationDelay: '0.6s',
-          opacity: 0,
-        }}
-      >
-        <Link
-          href="/app"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '14px 36px',
-            borderRadius: '14px',
-            background: 'var(--pl-accent)',
-            color: 'var(--pl-bg)',
-            fontWeight: 700,
-            fontSize: '1rem',
-            fontFamily: 'var(--font-heading)',
-            textDecoration: 'none',
-            animation: 'buttonGlow 3s ease-in-out infinite',
-          }}
-        >
-          Analyze My Digital Risk Profile →
-        </Link>
-        <p style={{ fontSize: '0.72rem', color: 'var(--pl-text-muted)', fontFamily: 'var(--font-mono)' }}>
-          No account required · Takes ~30 seconds per service
-        </p>
-      </div>
 
       {/* Footer */}
       <footer className="flex justify-center">

@@ -1,7 +1,5 @@
 export async function POST(request) {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
-  const body = await request.json();
-
   let body;
   try {
     body = await request.json();
@@ -19,5 +17,6 @@ export async function POST(request) {
     return Response.json({ detail: `Backend unreachable: ${err.message}` }, { status: 502 });
   }
 
+  const data = await res.json();
   return Response.json(data, { status: res.status });
 }

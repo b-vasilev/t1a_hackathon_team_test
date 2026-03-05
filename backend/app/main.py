@@ -22,7 +22,6 @@ from .analyzer import (
     LLM_MODEL,
     LLMUnavailableError,
     analyze_policy,
-    analyze_text,
     analyze_policy_text,
     average_grade,
     chat_about_policy,
@@ -407,57 +406,6 @@ async def analyze_services(
         "results": list(results),
     }
 
-
-@app.post("/api/analyze-text")
-async def analyze_policy_from_text(req: AnalyzeTextRequest, db: AsyncSession = Depends(get_db)):
-    text = req.text.strip()
-    if not text:
-        raise HTTPException(status_code=400, detail="Policy text cannot be empty")
-    if len(text) < 100:
-        raise HTTPException(status_code=400, detail="Policy text is too short to analyze")
-
-    name = req.name.strip() or "Custom Policy"
-    logger.info("Analyzing pasted policy text for '%s' (%d chars)", name, len(text))
-
-    try:
-        analysis_data = await analyze_text(text, service_name=name)
-    except LLMUnavailableError as e:
-        raise HTTPException(status_code=503, detail=f"LLM service unavailable: {e}")
-
-    # Persist as a Service + PolicyAnalysis so it can be compared with other services
-    svc = Service(name=name, website_url="", privacy_policy_url="", is_popular=False, icon="📄")
-    db.add(svc)
-    await db.flush()
-
-    analysis = PolicyAnalysis(
-        service_id=svc.id,
-        grade=analysis_data["grade"],
-        summary=analysis_data["summary"],
-        red_flags=json.dumps(analysis_data.get("red_flags", [])),
-        warnings=json.dumps(analysis_data.get("warnings", [])),
-        positives=json.dumps(analysis_data.get("positives", [])),
-        categories=json.dumps(analysis_data.get("categories", {})),
-        highlights=json.dumps(analysis_data.get("highlights", [])),
-        actions=json.dumps([]),
-        alternatives=json.dumps(analysis_data.get("alternatives", [])),
-        policy_text=text[:80000],
-    )
-    db.add(analysis)
-    await db.commit()
-
-    return {
-        "service_id": svc.id,
-        "name": name,
-        "grade": analysis_data["grade"],
-        "summary": analysis_data["summary"],
-        "red_flags": analysis_data["red_flags"],
-        "warnings": analysis_data["warnings"],
-        "positives": analysis_data.get("positives", []),
-        "categories": analysis_data.get("categories", {}),
-        "highlights": analysis_data.get("highlights", []),
-        "alternatives": analysis_data.get("alternatives", []),
-        "was_truncated": analysis_data.get("was_truncated", False),
-    }
 
 class AnalyzeTextRequest(BaseModel):
     text: str
