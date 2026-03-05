@@ -1,9 +1,9 @@
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import Service
+from .models import PolicyAnalysis, Service
 
 logger = logging.getLogger("privacylens.seed")
 
@@ -39,7 +39,7 @@ POPULAR_SERVICES = [
     {
         "name": "Facebook",
         "website_url": "https://www.facebook.com",
-        "privacy_policy_url": "https://www.facebook.com/privacy/policy/",
+        "privacy_policy_url": "https://mbasic.facebook.com/privacy/policy/",
         "icon": _favicon("facebook.com"),
         "category": "Social",
     },
@@ -146,7 +146,7 @@ POPULAR_SERVICES = [
     {
         "name": "Disney+",
         "website_url": "https://www.disneyplus.com",
-        "privacy_policy_url": "https://www.disneyplus.com/legal/privacy-policy",
+        "privacy_policy_url": "https://privacy.thewaltdisneycompany.com/en/current-privacy-policy/",
         "icon": _favicon("disneyplus.com"),
         "category": "Streaming",
     },
@@ -203,10 +203,35 @@ POPULAR_SERVICES = [
 ]
 
 
+async def _patch_policy_urls(db: AsyncSession) -> None:
+    """Update privacy_policy_url for existing services when the seed data has changed."""
+    updated = 0
+    for svc_data in POPULAR_SERVICES:
+        result = await db.execute(
+            select(Service).where(Service.name == svc_data["name"], Service.is_popular.is_(True))
+        )
+        svc = result.scalar_one_or_none()
+        if svc and svc.privacy_policy_url != svc_data["privacy_policy_url"]:
+            logger.info(
+                "Patching policy URL for %s: %s → %s",
+                svc_data["name"],
+                svc.privacy_policy_url,
+                svc_data["privacy_policy_url"],
+            )
+            svc.privacy_policy_url = svc_data["privacy_policy_url"]
+            # Clear stale analysis cache so next analyze uses the new URL
+            await db.execute(delete(PolicyAnalysis).where(PolicyAnalysis.service_id == svc.id))
+            updated += 1
+    if updated:
+        await db.commit()
+        logger.info("Patched %d service URL(s)", updated)
+
+
 async def seed_popular_services(db: AsyncSession) -> None:
     result = await db.execute(select(Service).where(Service.is_popular).limit(1))
     existing = result.scalar_one_or_none()
     if existing:
+        await _patch_policy_urls(db)
         logger.info("Popular services already seeded, skipping")
         return
 

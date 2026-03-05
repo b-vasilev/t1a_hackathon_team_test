@@ -255,6 +255,27 @@ export default function SudokuGame({ scanDone = false }) {
         </div>
       )}
 
+      {/* Scan done — show "View results" at all times once scan is complete */}
+      {scanDone && !solved && (
+        <button
+          onClick={() => window.close()}
+          style={{
+            padding: '7px 18px',
+            borderRadius: '8px',
+            background: 'var(--pl-accent)',
+            color: 'var(--pl-bg)',
+            border: 'none',
+            fontSize: '0.82rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'var(--font-mono)',
+            animation: 'fadeInUp 0.4s ease forwards',
+          }}
+        >
+          View my results →
+        </button>
+      )}
+
       {/* Solved banner */}
       {solved && (
         <div
@@ -286,23 +307,21 @@ export default function SudokuGame({ scanDone = false }) {
             >
               Play another puzzle
             </button>
-            {scanDone && (
-              <button
-                onClick={() => window.close()}
-                style={{
-                  padding: '7px 16px',
-                  borderRadius: '8px',
-                  background: 'transparent',
-                  color: 'var(--pl-text-dim)',
-                  border: '1px solid var(--pl-border)',
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                View my results →
-              </button>
-            )}
+            <button
+              onClick={() => window.close()}
+              style={{
+                padding: '7px 16px',
+                borderRadius: '8px',
+                background: 'transparent',
+                color: scanDone ? 'var(--pl-accent)' : 'var(--pl-text-dim)',
+                border: `1px solid ${scanDone ? 'var(--pl-accent)' : 'var(--pl-border)'}`,
+                fontSize: '0.82rem',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              {scanDone ? 'View my results →' : 'Close'}
+            </button>
           </div>
         </div>
       )}

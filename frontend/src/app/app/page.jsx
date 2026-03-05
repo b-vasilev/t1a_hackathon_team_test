@@ -1,9 +1,11 @@
-import Image from 'next/image';
+'use client';
+
+import { useState, useEffect, useCallback, useRef } from 'react';
 import ServiceGrid from '@/components/ServiceGrid';
 import AddService from '@/components/AddService';
 import RiskProfile from '@/components/RiskProfile';
 import CompareTab from '@/components/CompareTab';
-import CustomPolicyTab from '@/components/CustomPolicyTab';
+import ImportTab from '@/components/ImportTab';
 
 const SS_KEYS = {
   selectedIds: 'pl_selectedIds',
@@ -11,7 +13,6 @@ const SS_KEYS = {
   results: 'pl_results',
   overallGrade: 'pl_overallGrade',
   activeTab: 'pl_active_tab',
-  noSudoku: 'pl_no_sudoku',
 };
 
 function loadFromSession(key, fallback) {
@@ -39,7 +40,7 @@ const SCAN_MSGS = [
   'Generating your report...',
 ];
 
-export default function Home() {
+export default function AppPage() {
   const [activeTab, setActiveTab] = useState('analyze');
   const [services, setServices] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -51,15 +52,18 @@ export default function Home() {
   const [hydrated, setHydrated] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
   const [noSudoku, setNoSudoku] = useState(false);
+  const [comparePreload, setComparePreload] = useState(null);
   const [scanMsg, setScanMsg] = useState('');
   const sudokuWindowRef = useRef(null);
   const resultsRef = useRef(null);
   const scanMsgTimerRef = useRef(null);
-  const cancelledRef = useRef(false);
+  const broadcastRef = useRef(null);
 
-  // Clean up scan message timer on unmount
+  // Set up BroadcastChannel for real-time scan progress to Sudoku popup
   useEffect(() => {
-    return () => clearTimeout(scanMsgTimerRef.current);
+    const ch = new BroadcastChannel('pl_scan');
+    broadcastRef.current = ch;
+    return () => ch.close();
   }, []);
 
   const openSudokuPopup = useCallback(() => {
@@ -67,7 +71,7 @@ export default function Home() {
       const w = 520, h = 740;
       const left = Math.round(window.screenX + (window.outerWidth - w) / 2);
       const top = Math.round(window.screenY + (window.outerHeight - h) / 2);
-      const popup = window.open('/sudoku', 'privacylens-sudoku', `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`);
+      const popup = window.open('/sudoku', 'policylens-sudoku', `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=no`);
       if (popup) {
         sudokuWindowRef.current = popup;
       }
@@ -99,7 +103,7 @@ export default function Home() {
     setResults(loadFromSession(SS_KEYS.results, []));
     setOverallGrade(loadFromSession(SS_KEYS.overallGrade, null));
     setActiveTab(loadFromSession(SS_KEYS.activeTab, 'analyze'));
-    setNoSudoku(Boolean(loadFromSession(SS_KEYS.noSudoku, false)));
+    setNoSudoku(Boolean(sessionStorage.getItem('pl_no_sudoku')));
     setHydrated(true);
   }, []);
 
@@ -155,26 +159,30 @@ export default function Home() {
   }, []);
 
   const handleAnalyze = async () => {
-    clearTimeout(scanMsgTimerRef.current);
-    cancelledRef.current = false;
     setIsLoading(true);
     setError('');
-
-    // Start progress message cycling (loops when exhausted)
-    setScanMsg(SCAN_MSGS[0]);
-    let msgIdx = 0;
-    const advanceMsg = () => {
-      if (cancelledRef.current) { return; }
-      msgIdx += 1;
-      setScanMsg(SCAN_MSGS[msgIdx % SCAN_MSGS.length]);
-      scanMsgTimerRef.current = setTimeout(advanceMsg, 2800);
-    };
-    scanMsgTimerRef.current = setTimeout(advanceMsg, 2800);
-
-    // Open Sudoku popup unless user opted out
+    // Open Sudoku popup unless user opted out (before broadcasts so popup can subscribe)
     if (!noSudoku) {
       openSudokuPopup();
     }
+
+    // Brief delay so newly-opened popup has time to subscribe to BroadcastChannel
+    await new Promise((r) => setTimeout(r, 150));
+    broadcastRef.current?.postMessage({ type: 'scan_start' });
+
+    // Start progress message cycling
+    setScanMsg(SCAN_MSGS[0]);
+    broadcastRef.current?.postMessage({ type: 'scan_progress', msg: SCAN_MSGS[0] });
+    let msgIdx = 0;
+    const advanceMsg = () => {
+      msgIdx += 1;
+      if (msgIdx < SCAN_MSGS.length) {
+        setScanMsg(SCAN_MSGS[msgIdx]);
+        broadcastRef.current?.postMessage({ type: 'scan_progress', msg: SCAN_MSGS[msgIdx] });
+        scanMsgTimerRef.current = setTimeout(advanceMsg, 2800);
+      }
+    };
+    scanMsgTimerRef.current = setTimeout(advanceMsg, 2800);
 
     try {
       const res = await fetch('/api/analyze', {
@@ -194,11 +202,11 @@ export default function Home() {
       setResults(data.results);
       setOverallGrade(data.overall_grade);
       setScanComplete(true);
-      sessionStorage.setItem('pl_scan_done', String(Date.now()));
+      broadcastRef.current?.postMessage({ type: 'scan_complete' });
     } catch (e) {
       setError(e.message);
+      broadcastRef.current?.postMessage({ type: 'scan_error' });
     } finally {
-      cancelledRef.current = true;
       clearTimeout(scanMsgTimerRef.current);
       setScanMsg('');
       setIsLoading(false);
@@ -216,12 +224,8 @@ export default function Home() {
         body: JSON.stringify({ service_ids: [serviceId] }),
       });
       if (!res.ok) {
-        let detail = `Rescan failed (HTTP ${res.status})`;
-        try {
-          const err = await res.json();
-          if (err.detail) { detail = err.detail; }
-        } catch {}
-        throw new Error(detail);
+        const err = await res.json();
+        throw new Error(err.detail || 'Rescan failed');
       }
       const data = await res.json();
       const newResult = data.results[0];
@@ -231,6 +235,11 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  const handleAddToCompare = useCallback((svc) => {
+    setComparePreload(svc);
+    setActiveTab('compare');
   }, []);
 
   const clearCache = useCallback(async () => {
@@ -245,11 +254,21 @@ export default function Home() {
 
   const hasSelection = selectedIds.size > 0;
 
-export default function LandingPage() {
   return (
-    <main className="max-w-5xl mx-auto px-4 py-10 flex flex-col gap-12">
-      {/* Tab switcher */}
-      <div className="flex justify-center">
+    <div style={{ minHeight: '100vh' }}>
+      {/* Sticky tab switcher — outside flex container so position:sticky works */}
+      <div
+        className="flex justify-center"
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 50,
+          background: 'var(--pl-bg)',
+          paddingTop: '12px',
+          paddingBottom: '12px',
+          borderBottom: '1px solid var(--pl-border)',
+        }}
+      >
         <div
           className="flex gap-1 p-1 rounded-full"
           style={{ background: 'var(--pl-surface)', border: '1px solid var(--pl-border)' }}
@@ -257,221 +276,50 @@ export default function LandingPage() {
           {[
             { id: 'analyze', label: 'Analyze' },
             { id: 'compare', label: 'Compare' },
-            { id: 'custom', label: 'Custom Policy' },
-          ].map(({ id, label }) => (
+            { id: 'import', label: 'Custom' },
+          ].map((tab) => (
             <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className="px-5 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer capitalize"
-              style={activeTab === id
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="px-5 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer"
+              style={activeTab === tab.id
                 ? { background: 'var(--pl-accent)', color: 'var(--pl-bg)' }
                 : { color: 'var(--pl-text-muted)' }
               }
             >
-              {label}
+              {tab.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Hero */}
-      <header className="hero-section scan-line relative flex flex-col gap-5 text-center items-center" style={{ width: '100%', maxWidth: '720px' }}>
-        <Image
-          src="/policy-icon.svg"
-          alt="PrivacyLens icon"
-          className="relative z-1"
-          width={80}
-          height={92}
-          priority
-          style={{
-            animation: 'fadeInUp 0.6s ease forwards',
-            opacity: 0,
-            filter: 'drop-shadow(0 0 20px rgba(90, 186, 187, 0.3))',
-          }}
-        />
-        <h1
-          className="hero-title text-5xl md:text-6xl font-bold tracking-tight"
-          style={{ fontFamily: 'var(--font-heading)' }}
-        >
-          PrivacyLens
-        </h1>
-        <p
-          className="text-2xl md:text-3xl font-semibold tracking-tight"
-          style={{
-            fontFamily: 'var(--font-heading)',
-            color: 'var(--pl-text)',
-            animation: 'fadeInUp 0.6s ease forwards',
-            animationDelay: '0.1s',
-            opacity: 0,
-          }}
-        >
-          Know what you&apos;re agreeing to
-        </p>
-        <p
-          className="max-w-md"
-          style={{
-            color: 'var(--pl-text-muted)',
-            fontSize: '1.05rem',
-            lineHeight: 1.6,
-            animation: 'fadeInUp 0.6s ease forwards',
-            animationDelay: '0.2s',
-            opacity: 0,
-          }}
-        >
-          AI-powered privacy policy analysis that grades the services you use every day — in plain English.
-        </p>
-
-        {/* Trust chips */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '10px',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            animation: 'fadeInUp 0.6s ease forwards',
-            animationDelay: '0.3s',
-            opacity: 0,
-          }}
-        >
-          {[
-            { icon: '◈', label: 'No account needed' },
-            { icon: '◇', label: 'Free' },
-            { icon: '⬡', label: 'AI-powered' },
-          ].map((chip) => (
-            <span
-              key={chip.label}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '4px 12px',
-                borderRadius: '9999px',
-                background: 'rgba(0, 229, 255, 0.06)',
-                border: '1px solid rgba(0, 229, 255, 0.15)',
-                fontSize: '0.72rem',
-                fontFamily: 'var(--font-mono)',
-                color: 'var(--pl-text-muted)',
-                letterSpacing: '0.02em',
-              }}
-            >
-              <span style={{ color: 'var(--pl-accent)', fontSize: '0.7rem' }}>{chip.icon}</span>
-              {chip.label}
-            </span>
-          ))}
-        </div>
-      </header>
-
-      {/* How it works */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '16px',
-          width: '100%',
-          maxWidth: '640px',
-          animation: 'fadeInUp 0.5s ease forwards',
-          animationDelay: '0.4s',
-          opacity: 0,
-        }}
-        className="hero-steps-grid"
-      >
-        {[
-          {
-            icon: (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
-              </svg>
-            ),
-            title: 'Select services',
-            desc: 'Pick from popular apps or paste any URL',
-          },
-          {
-            icon: (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-              </svg>
-            ),
-            title: 'Scan policies',
-            desc: 'AI reads and grades each policy A+ to F',
-          },
-          {
-            icon: (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
-              </svg>
-            ),
-            title: 'Understand risk',
-            desc: 'Get a plain-English risk profile',
-          },
-        ].map((step) => (
-          <div
-            key={step.title}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '20px 12px',
-              borderRadius: '14px',
-              border: '1px solid var(--pl-border)',
-              background: 'var(--pl-surface)',
-              textAlign: 'center',
-            }}
-          >
-            <div
-              style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '12px',
-                background: 'rgba(0, 229, 255, 0.08)',
-                border: '1px solid rgba(0, 229, 255, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--pl-accent)',
-              }}
-            >
-              {step.icon}
-            </div>
-            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--pl-text)', fontFamily: 'var(--font-heading)' }}>
-              {step.title}
-            </span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--pl-text-dim)', lineHeight: 1.4 }}>
-              {step.desc}
-            </span>
-          </div>
-        </div>
-
-        {/* Scroll-down chevron */}
-        <button
-          onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })}
-          aria-label="Scroll to services"
-          style={{
-            marginTop: '20px',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            animation: 'chevronBounce 2s ease-in-out infinite',
-            color: 'var(--pl-text-dim)',
-            padding: '8px',
-            position: 'relative',
-            zIndex: 1,
-          }}
-        >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </button>
-      </header>
+      <main className="max-w-5xl mx-auto px-4 py-6 flex flex-col gap-10">
 
       {activeTab === 'analyze' && (
         <>
           {/* Service selection */}
           <section id="services" className="flex flex-col gap-4">
-            <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
-              Popular Services
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
+                Popular Services
+              </h2>
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--pl-text-dim)',
+                    background: 'none',
+                    border: '1px solid var(--pl-border)',
+                    borderRadius: '6px',
+                    padding: '3px 10px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Clear all ({selectedIds.size})
+                </button>
+              )}
+            </div>
             <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.875rem' }}>
               Select the services you use to scan their privacy policies.
             </p>
@@ -490,7 +338,7 @@ export default function LandingPage() {
               Add a Custom Service
             </h2>
             <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.875rem' }}>
-              Paste a link to any privacy policy — we&apos;ll analyze it for you.
+              Enter any website URL — we&apos;ll find its privacy policy automatically.
             </p>
             <AddService onAdd={handleAddCustom} />
           </section>
@@ -555,8 +403,6 @@ export default function LandingPage() {
             {/* Progress log */}
             {isLoading && scanMsg && (
               <p
-                aria-live="polite"
-                role="status"
                 style={{
                   color: 'var(--pl-accent)',
                   fontSize: '0.75rem',
@@ -576,16 +422,18 @@ export default function LandingPage() {
                 Select at least one service above
               </p>
             )}
-            <p style={{ color: 'var(--pl-text-muted)', fontSize: '0.75rem', textAlign: 'center', maxWidth: '360px' }}>
-              Not ready to face the truth? That&apos;s fair — you can always just{' '}
-              <button
-                onClick={openSudokuPopup}
-                style={{ color: 'var(--pl-accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}
-              >
-                play Sudoku
-              </button>
-              {' '}instead. Your data will be harvested either way. Share your sudoku success with friends!
-            </p>
+            {!noSudoku && (
+              <p style={{ color: 'var(--pl-text-muted)', fontSize: '0.75rem', textAlign: 'center', maxWidth: '360px' }}>
+                Not ready to face the truth? That&apos;s fair — you can always just{' '}
+                <button
+                  onClick={openSudokuPopup}
+                  style={{ color: 'var(--pl-accent)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', padding: 0, textDecoration: 'underline' }}
+                >
+                  play Sudoku
+                </button>
+                {' '}instead. Your data will be harvested either way.
+              </p>
+            )}
             <label
               style={{
                 display: 'flex',
@@ -601,7 +449,11 @@ export default function LandingPage() {
                 checked={noSudoku}
                 onChange={(e) => {
                   setNoSudoku(e.target.checked);
-                  saveToSession(SS_KEYS.noSudoku, e.target.checked || null);
+                  if (e.target.checked) {
+                    sessionStorage.setItem('pl_no_sudoku', '1');
+                  } else {
+                    sessionStorage.removeItem('pl_no_sudoku');
+                  }
                 }}
                 style={{ accentColor: 'var(--pl-accent)', cursor: 'pointer' }}
               />
@@ -626,56 +478,79 @@ export default function LandingPage() {
       )}
 
       {activeTab === 'compare' && (
-        <CompareTab services={services} />
+        <CompareTab
+          services={services}
+          parentHydrated={hydrated}
+          preloadService={comparePreload}
+          onPreloadConsumed={() => setComparePreload(null)}
+        />
       )}
 
-      {activeTab === 'custom' && (
-        <CustomPolicyTab />
+      {activeTab === 'import' && (
+        <ImportTab onSaveService={handleAddToCompare} />
       )}
 
-      {/* CTA */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '12px',
-          animation: 'fadeInUp 0.5s ease forwards',
-          animationDelay: '0.6s',
-          opacity: 0,
-        }}
-      >
-        <Link
-          href="/app"
+      {/* Scan complete toast */}
+      {scanComplete && !noSudoku && (
+        <div
           style={{
-            display: 'inline-flex',
+            position: 'fixed',
+            bottom: '24px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            padding: '14px 36px',
-            borderRadius: '14px',
-            background: 'var(--pl-accent)',
-            color: 'var(--pl-bg)',
-            fontWeight: 700,
-            fontSize: '1rem',
-            fontFamily: 'var(--font-heading)',
-            textDecoration: 'none',
-            animation: 'buttonGlow 3s ease-in-out infinite',
+            gap: '12px',
+            padding: '12px 20px',
+            borderRadius: '12px',
+            background: 'var(--pl-surface)',
+            border: '1px solid var(--pl-accent)',
+            boxShadow: '0 0 24px rgba(0, 229, 255, 0.25)',
+            animation: 'fadeInUp 0.4s ease forwards',
+            zIndex: 1000,
+            whiteSpace: 'nowrap',
           }}
         >
-          Analyze My Digital Risk Profile →
-        </Link>
-        <p style={{ fontSize: '0.72rem', color: 'var(--pl-text-muted)', fontFamily: 'var(--font-mono)' }}>
-          No account required · Takes ~30 seconds per service
-        </p>
-      </div>
+          <span style={{ color: 'var(--pl-accent)', fontSize: '1rem' }}>&#x2713;</span>
+          <span style={{ color: 'var(--pl-text)', fontSize: '0.875rem', fontWeight: 500 }}>
+            Scan complete — your privacy report is ready!
+          </span>
+          <button
+            onClick={() => {
+              resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              setScanComplete(false);
+            }}
+            style={{
+              padding: '4px 12px',
+              borderRadius: '8px',
+              background: 'var(--pl-accent)',
+              color: 'var(--pl-bg)',
+              border: 'none',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            View results &#x2193;
+          </button>
+          <button
+            onClick={() => setScanComplete(false)}
+            style={{ background: 'none', border: 'none', color: 'var(--pl-text-dim)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: 0 }}
+            title="Dismiss"
+          >
+            &#x2715;
+          </button>
+        </div>
+      )}
 
       {/* Footer */}
-      <footer className="flex justify-center">
+      <footer className="flex justify-center pt-4 pb-2">
         <span className="hackathon-badge">
           <span style={{ color: 'var(--pl-accent)' }}>&#9670;</span>
-          T1A Hackathon 2026 — PrivacyLens
+          T1A Hackathon 2026 — PolicyLens
         </span>
       </footer>
-    </main>
+      </main>
+    </div>
   );
 }

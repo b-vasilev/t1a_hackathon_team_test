@@ -46,6 +46,17 @@ export default function CompareTab({ services = [] }) {
     setHydrated(true);
   }, []);
 
+  // When a service is pre-loaded from the Custom tab, add it to slot A
+  useEffect(() => {
+    if (!preloadService || !hydrated) { return; }
+    setCustomServices((prev) => prev.some((s) => s.id === preloadService.id) ? prev : [...prev, preloadService]);
+    setSelectionOrder((prev) => {
+      if (prev.includes(preloadService.id)) { return prev; }
+      return prev.length < 2 ? [...prev, preloadService.id] : [prev[1], preloadService.id];
+    });
+    onPreloadConsumed?.();
+  }, [preloadService, hydrated, onPreloadConsumed]);
+
   // Persist order
   useEffect(() => {
     if (!hydrated) { return; }

@@ -1,25 +1,36 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import SudokuGame from '@/components/SudokuGame';
 
 export default function SudokuPage() {
   const [scanDone, setScanDone] = useState(false);
+  const [scanSteps, setScanSteps] = useState([]);
+  const stepsEndRef = useRef(null);
 
   useEffect(() => {
-    // Check if scan already finished before this window opened
-    if (sessionStorage.getItem('pl_scan_done')) {
-      setScanDone(true);
-    }
-
-    const handleStorage = (e) => {
-      if (e.key === 'pl_scan_done' && e.newValue) {
+    const ch = new BroadcastChannel('pl_scan');
+    ch.onmessage = (e) => {
+      if (e.data.type === 'scan_start') {
+        setScanDone(false);
+        setScanSteps([]);
+      } else if (e.data.type === 'scan_progress') {
+        setScanSteps((prev) => [...prev, e.data.msg]);
+      } else if (e.data.type === 'scan_complete') {
         setScanDone(true);
+      } else if (e.data.type === 'scan_error') {
+        setScanSteps((prev) => [...prev, 'Scan failed.']);
       }
     };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    return () => ch.close();
   }, []);
+
+  // Auto-scroll progress log
+  useEffect(() => {
+    stepsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [scanSteps]);
+
+  const isScanning = !scanDone && scanSteps.length > 0;
 
   return (
     <main
@@ -51,33 +62,63 @@ export default function SudokuPage() {
           PrivacyLens Sudoku
         </h1>
         <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}>
-          {scanDone ? 'Scan finished — your results are waiting!' : 'Your privacy is being scanned. Relax.'}
+          {scanDone
+            ? 'Scan finished — your results are waiting!'
+            : isScanning
+              ? 'Scanning your privacy policies...'
+              : 'Play while we scan your privacy policies.'}
         </p>
       </div>
 
-      {/* Scan complete banner */}
-      {scanDone && (
+      {/* Progress log */}
+      {(isScanning || scanDone) && (
         <div
           style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '12px 20px',
-            borderRadius: '10px',
-            background: 'var(--pl-surface)',
-            border: '1px solid var(--pl-accent)',
-            boxShadow: '0 0 20px rgba(0, 229, 255, 0.2)',
-            animation: 'fadeInUp 0.4s ease forwards',
-            textAlign: 'center',
             width: '100%',
             maxWidth: '380px',
+            padding: '10px 14px',
+            borderRadius: '10px',
+            background: 'var(--pl-surface)',
+            border: `1px solid ${scanDone ? 'var(--pl-accent)' : 'var(--pl-border)'}`,
+            boxShadow: scanDone ? '0 0 20px rgba(0, 229, 255, 0.2)' : 'none',
+            maxHeight: '120px',
+            overflowY: 'auto',
           }}
         >
-          <span style={{ color: 'var(--pl-accent)', fontSize: '1.1rem' }}>✓</span>
-          <span style={{ color: 'var(--pl-text)', fontSize: '0.85rem', fontWeight: 500 }}>
-            Scan complete! Your privacy report is ready in the main window.
-          </span>
+          {scanSteps.map((step, i) => (
+            <p
+              key={i}
+              style={{
+                color: i === scanSteps.length - 1 && !scanDone ? 'var(--pl-accent)' : 'var(--pl-text-muted)',
+                fontSize: '0.75rem',
+                fontFamily: 'var(--font-mono)',
+                margin: '2px 0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <span style={{ opacity: 0.5 }}>›</span>
+              {step}
+            </p>
+          ))}
+          {scanDone && (
+            <p
+              style={{
+                color: 'var(--pl-accent)',
+                fontSize: '0.75rem',
+                fontFamily: 'var(--font-mono)',
+                margin: '4px 0 0',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <span>✓</span> Report ready in the main window.
+            </p>
+          )}
+          <div ref={stepsEndRef} />
         </div>
       )}
 
@@ -94,9 +135,9 @@ export default function SudokuPage() {
       </div>
 
       {/* Footer nudge */}
-      {!scanDone && (
+      {!scanDone && !isScanning && (
         <p style={{ color: 'var(--pl-text-muted)', fontSize: '0.75rem', textAlign: 'center', maxWidth: '320px' }}>
-          Results will appear in the main window when the scan finishes.
+          Start a scan from the main window to see live progress here.
         </p>
       )}
     </main>

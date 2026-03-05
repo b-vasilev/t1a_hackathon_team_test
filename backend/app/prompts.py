@@ -54,6 +54,9 @@ Analyze this privacy policy and return a JSON object with this exact schema:
   "positives": [
     {{"text": "Users can request full data deletion", "quote": "You may request deletion of all personal data"}}
   ],
+  "alternatives": [
+    {{"name": "Signal", "description": "Open-source, end-to-end encrypted messaging", "url": "https://signal.org"}}
+  ]
   "tldr": "Google collects nearly everything and shares it widely — be cautious"
 }}
 
@@ -68,6 +71,9 @@ Rules:
 - Each object MUST have "text" (plain English summary, max 80 chars) \
 and "quote" (exact verbatim excerpt from the policy text).
 - The "quote" MUST be a word-for-word excerpt from the policy. Do NOT paraphrase or modify the quote.
+- alternatives: ONLY if the service has poor privacy (grade D+/D/D-/F overall), suggest 2–3 \
+specific privacy-friendly alternative services. Each must have "name", "description" (max 80 chars), \
+and "url" (the alternative service's homepage URL). If grade is C or above, return an empty array [].
 - Return ONLY valid JSON.
 
 Privacy policy text:

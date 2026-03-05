@@ -95,6 +95,52 @@ function GradeBadge({ grade, size = 'md' }) {
   );
 }
 
+const ALTERNATIVES = {
+  google:     [{ name: 'DuckDuckGo', desc: 'No tracking, no profiling', url: 'https://duckduckgo.com' }, { name: 'Brave Search', desc: 'Independent index', url: 'https://search.brave.com' }],
+  facebook:   [{ name: 'Signal', desc: 'Encrypted messaging', url: 'https://signal.org' }, { name: 'Mastodon', desc: 'Decentralized social network', url: 'https://joinmastodon.org' }],
+  instagram:  [{ name: 'Pixelfed', desc: 'Photo sharing without tracking', url: 'https://pixelfed.org' }],
+  tiktok:     [{ name: 'PeerTube', desc: 'Federated video, no algorithm', url: 'https://joinpeertube.org' }],
+  twitter:    [{ name: 'Mastodon', desc: 'Federated, no ads', url: 'https://joinmastodon.org' }, { name: 'Bluesky', desc: 'Open protocol', url: 'https://bsky.app' }],
+  x:          [{ name: 'Mastodon', desc: 'Federated, no ads', url: 'https://joinmastodon.org' }],
+  whatsapp:   [{ name: 'Signal', desc: 'Open-source, end-to-end encrypted', url: 'https://signal.org' }],
+  youtube:    [{ name: 'Invidious', desc: 'Privacy-friendly YouTube frontend', url: 'https://invidious.io' }, { name: 'PeerTube', desc: 'Federated video', url: 'https://joinpeertube.org' }],
+  discord:    [{ name: 'Matrix/Element', desc: 'Federated, self-hostable', url: 'https://element.io' }, { name: 'Signal', desc: 'Encrypted group chat', url: 'https://signal.org' }],
+  snapchat:   [{ name: 'Signal', desc: 'Disappearing messages + E2E', url: 'https://signal.org' }],
+  zoom:       [{ name: 'Jitsi Meet', desc: 'Open-source, no account needed', url: 'https://meet.jit.si' }],
+  slack:      [{ name: 'Matrix/Element', desc: 'Federated, self-hostable', url: 'https://element.io' }, { name: 'Mattermost', desc: 'Open-source team chat', url: 'https://mattermost.com' }],
+  reddit:     [{ name: 'Lemmy', desc: 'Federated Reddit alternative', url: 'https://join-lemmy.org' }],
+  spotify:    [{ name: 'Bandcamp', desc: 'Artist-first, minimal data', url: 'https://bandcamp.com' }],
+  dropbox:    [{ name: 'Nextcloud', desc: 'Self-hosted cloud storage', url: 'https://nextcloud.com' }, { name: 'ProtonDrive', desc: 'End-to-end encrypted', url: 'https://proton.me/drive' }],
+  netflix:    [{ name: 'Jellyfin', desc: 'Self-hosted, no tracking', url: 'https://jellyfin.org' }],
+  gmail:      [{ name: 'ProtonMail', desc: 'End-to-end encrypted email', url: 'https://proton.me/mail' }, { name: 'Tutanota', desc: 'Open-source encrypted email', url: 'https://tuta.com' }],
+  linkedin:   [{ name: 'Mastodon', desc: 'Professional communities exist', url: 'https://joinmastodon.org' }],
+  'disney+':  [{ name: 'Jellyfin', desc: 'Self-hosted media, zero tracking', url: 'https://jellyfin.org' }],
+  amazon:     [{ name: 'Nextcloud', desc: 'Self-hosted alternatives available', url: 'https://nextcloud.com' }],
+  microsoft:  [{ name: 'LibreOffice', desc: 'Open-source office suite', url: 'https://libreoffice.org' }],
+  twitch:     [{ name: 'PeerTube', desc: 'Federated live streaming', url: 'https://joinpeertube.org' }],
+  pinterest:  [{ name: 'Are.na', desc: 'Mindful bookmarking, minimal tracking', url: 'https://www.are.na' }],
+};
+
+function findAlternatives(serviceName) {
+  if (!serviceName) { return []; }
+  const key = serviceName.toLowerCase().trim();
+  for (const [k, alts] of Object.entries(ALTERNATIVES)) {
+    if (key.includes(k) || k.includes(key)) { return alts; }
+  }
+  return [];
+}
+
+// Merge LLM-generated alternatives (preferred) with static fallback
+function getAlternativesForResult(result) {
+  const llmAlts = (result.alternatives || []).map((a) => ({ name: a.name, description: a.description, url: a.url }));
+  if (llmAlts.length > 0) { return llmAlts; }
+  const staticAlts = findAlternatives(result.name);
+  return staticAlts.map((a) => ({ name: a.name, description: a.desc, url: a.url }));
+}
+
+const LOW_GRADES = new Set(['D+', 'D', 'D-', 'F']);
+const GRADE_GPA = { 'A+': 4.3, 'A': 4.0, 'A-': 3.7, 'B+': 3.3, 'B': 3.0, 'B-': 2.7, 'C+': 2.3, 'C': 2.0, 'C-': 1.7, 'D+': 1.3, 'D': 1.0, 'D-': 0.7, 'F': 0.0 };
+
 function actionCategoryIcon(category) {
   const icons = {
     deletion: '\u{1F5D1}\uFE0F',
@@ -177,6 +223,68 @@ function ServiceCard({ result, onRescan, isLoading }) {
           <p className="text-sm mt-1" style={{ color: 'var(--pl-text-muted)' }}>{result.tldr || result.summary}</p>
         </div>
       </div>
+
+      {/* In-card alternatives for D/F services */}
+      {LOW_GRADES.has(result.grade) && (() => {
+        const alts = getAlternativesForResult(result);
+        if (alts.length === 0) { return null; }
+        return (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap', paddingTop: '4px' }}>
+            <span style={{ fontSize: '0.68rem', color: 'var(--pl-text-dim)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', paddingTop: '6px' }}>
+              🛡️ Consider instead:
+            </span>
+            {alts.map((alt) => (
+              alt.url ? (
+                <a
+                  key={alt.name}
+                  href={alt.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={alt.description}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    border: '1px solid rgba(0,229,255,0.2)',
+                    background: 'rgba(0,229,255,0.06)',
+                    textDecoration: 'none',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    color: 'var(--pl-accent)',
+                    fontFamily: 'var(--font-mono)',
+                    transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,229,255,0.14)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,229,255,0.06)'; }}
+                >
+                  {alt.name} ↗
+                </a>
+              ) : (
+                <span
+                  key={alt.name}
+                  title={alt.description}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    border: '1px solid rgba(0,229,255,0.2)',
+                    background: 'rgba(0,229,255,0.06)',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    color: 'var(--pl-accent)',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {alt.name}
+                </span>
+              )
+            ))}
+          </div>
+        );
+      })()}
 
       {/* ── Unified Action Bar ── */}
       {(hasDetails || (result.grade && result.grade !== 'N/A')) && (
@@ -753,11 +861,117 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
         </div>
       </div>
 
+      {/* Worst Offender callout */}
+      {(() => {
+        const worst = [...results].sort((a, b) => (GRADE_GPA[a.grade] ?? 99) - (GRADE_GPA[b.grade] ?? 99))[0];
+        if (!worst || !LOW_GRADES.has(worst.grade)) { return null; }
+        const topFlag = worst.red_flags?.[0];
+        const snippet = topFlag ? (typeof topFlag === 'object' ? topFlag.text : topFlag) : worst.summary;
+        return (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              background: 'rgba(255,23,68,0.07)',
+              border: '1px solid rgba(255,23,68,0.25)',
+            }}
+          >
+            <span style={{ fontSize: '1rem', flexShrink: 0 }}>⚠️</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--pl-grade-f)', fontFamily: 'var(--font-heading)' }}>
+                Worst offender: {worst.name} ({worst.grade})
+              </span>
+              {snippet && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--pl-text-muted)' }}>{snippet}</span>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Aggregated Action Plan */}
+      {(() => {
+        const actions = [...results]
+          .sort((a, b) => (GRADE_GPA[a.grade] ?? 99) - (GRADE_GPA[b.grade] ?? 99))
+          .flatMap((r) => (r.actions || []).map((act) => ({ ...act, serviceName: r.name })))
+          .slice(0, 5);
+        if (actions.length === 0) { return null; }
+        return (
+          <div
+            style={{
+              borderRadius: '14px',
+              border: '1px solid var(--pl-border)',
+              background: 'var(--pl-surface)',
+              padding: '20px 24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.95rem' }}>📋</span>
+              <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'var(--pl-text)', fontSize: '0.95rem' }}>
+                Your Action Plan
+              </span>
+              <span style={{ fontSize: '0.68rem', color: 'var(--pl-text-dim)', fontFamily: 'var(--font-mono)', marginLeft: 'auto' }}>
+                top {actions.length} priority steps
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {actions.map((action, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '10px',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    background: 'rgba(0,210,255,0.05)',
+                    border: '1px solid rgba(0,210,255,0.12)',
+                  }}
+                >
+                  <span style={{ fontSize: '1rem', flexShrink: 0 }}>{actionCategoryIcon(action.category)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--pl-text)' }}>{action.label}</span>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--pl-text-dim)', fontFamily: 'var(--font-mono)' }}>
+                        [{action.serviceName}]
+                      </span>
+                    </div>
+                    {action.description && (
+                      <p style={{ fontSize: '0.72rem', color: 'var(--pl-text-muted)', margin: '2px 0 0', lineHeight: 1.4 }}>
+                        {action.description}
+                      </p>
+                    )}
+                    {action.url && (
+                      <a
+                        href={action.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: '0.7rem', color: 'var(--pl-accent)', fontFamily: 'var(--font-mono)', textDecoration: 'none', display: 'inline-block', marginTop: '4px' }}
+                      >
+                        Go to page →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Per-service cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 stagger-children">
-        {results.map((r) => (
-          <ServiceCard key={r.service_id} result={r} onRescan={onRescanService} isLoading={isLoading} />
-        ))}
+        {[...results]
+          .sort((a, b) => (GRADE_GPA[a.grade] ?? 99) - (GRADE_GPA[b.grade] ?? 99))
+          .map((r) => (
+            <ServiceCard key={r.service_id} result={r} onRescan={onRescanService} isLoading={isLoading} />
+          ))}
       </div>
 
       {shareUrl && <ShareModal url={shareUrl} onClose={() => setShareUrl(null)} />}
