@@ -10,6 +10,19 @@ on:
       - 'LICENSE'
       - '.gitignore'
       - '.env.example'
+      - 'backend/tests/**'
+      - 'frontend/src/**/*.test.js'
+      - 'frontend/src/**/*.test.jsx'
+      - 'frontend/src/**/__tests__/**'
+      - 'backend/.dockerignore'
+      - 'frontend/.dockerignore'
+      - 'CLAUDE.md'
+      - 'Justfile'
+      - '.devcontainer/**'
+      - 'frontend/vitest.config.js'
+      - 'frontend/vitest.setup.js'
+      - 'frontend/eslint.config.mjs'
+      - 'backend/tests/conftest.py'
   workflow_dispatch:
     inputs:
       reset_db:

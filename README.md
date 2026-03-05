@@ -8,11 +8,15 @@ PrivacyLens changes that. Select from 27 popular services or paste any URL, and 
 
 No account required. No data stored. Runs entirely in your browser session.
 
+**Live app:** [https://privacylens.app](https://privacylens.app/) — no setup required.
+
 ---
 
 ## The Problem
 
 Every day, millions of people click "I Agree" without reading a single word. Privacy policies are deliberately long, vague, and full of legal jargon. Users have no practical way to understand what they're consenting to — until now.
+
+> **Why this matters at T1A:** Before onboarding any third-party vendor or SaaS tool, someone has to review their privacy policy. PrivacyLens turns a manual, hour-long legal review into a 30-second automated audit — surfacing exactly what data is collected, shared, and retained, with direct quotes as evidence.
 
 ## Our Solution
 
@@ -97,17 +101,23 @@ FastAPI backend                  (Docker, internal port 8000)
 
 ---
 
-## Configuration
+## Status
 
-```bash
-cp .env.example .env
-```
+### What's Working
+- Full end-to-end analysis pipeline: select a service → fetch policy → AI grading → results display
+- All 27 pre-seeded services analyzed and cached
+- Custom URL input with automatic privacy policy discovery
+- Q&A chat grounded in policy text
+- Side-by-side policy comparison
+- Full policy viewer with quote highlighting and section navigation
+- PDF report export
+- 4-fallback fetch strategy (direct → Jina AI → Google Cache → Wayback Machine)
+- Smart caching with 7-day TTL and per-service rescan
+- 70%+ test coverage on both backend and frontend
 
-| Variable | Required | Description |
-|---|---|---|
-| `LLM_API_KEY` | Yes | Your LLM provider API key (e.g., Anthropic) |
-| `LLM_MODEL` | No | Model identifier (default: `anthropic/claude-haiku-4-5-20251001`) |
-| `LLM_BASE_URL` | No | Custom API endpoint for proxies or local models |
+### What's Next
+- **Policy change tracking** — Monitor services over time, detect when a privacy policy changes, and highlight exactly what's different between versions.
+- **Dependency privacy audit** — Scan a project's dependency tree (e.g., `package.json`, `requirements.txt`) and automatically analyze the privacy policy of every third-party service and SDK your codebase depends on. Surface hidden data collection risks before they ship to production.
 
 ---
 
@@ -116,25 +126,21 @@ cp .env.example .env
 **Prerequisites:** Docker and Docker Compose.
 
 ```bash
-# Clone and configure
 git clone <repo-url>
 cd t1a_hackathon_team_test
-cp .env.example .env   # set LLM_API_KEY
-
-# Build and start
+cp .env.example .env
 docker compose up --build
-
-# Open the app
-open http://localhost:3000
 ```
 
-```bash
-# Stop
-docker compose down
+**Environment variables (`.env`):**
 
-# Stop and wipe analysis cache
-docker compose down -v
-```
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `LLM_API_KEY` | Yes | — | LLM provider API key (e.g., Anthropic) |
+| `LLM_MODEL` | No | `anthropic/claude-haiku-4-5-20251001` | Model identifier |
+| `APP_PORT` | No | `3000` | Frontend port |
+| `LLM_BASE_URL` | No | — | Custom API endpoint for proxies or local models |
+| `LOG_LEVEL` | No | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
 
 ---
 

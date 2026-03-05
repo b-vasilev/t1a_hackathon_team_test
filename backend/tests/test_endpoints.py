@@ -2,6 +2,10 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy import select as sa_select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from app.models import PolicyAnalysis, Service
 
 
 @pytest.mark.asyncio
@@ -196,3 +200,76 @@ class TestAnalyzeTextEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["results"][0]["name"] == "Custom Policy"
+
+    @patch("app.main.analyze_policy_text", new_callable=AsyncMock, side_effect=RuntimeError("LLM down"))
+    async def test_analyze_text_error_returns_500(self, mock_fn, client):
+        resp = await client.post("/api/analyze-text", json={"text": LONG_TEXT, "name": "Broken"})
+        assert resp.status_code == 500
+
+    @patch("app.main.analyze_policy_text", new_callable=AsyncMock, return_value=MOCK_ANALYSIS)
+    async def test_empty_name_defaults_to_custom_policy(self, mock_fn, client):
+        resp = await client.post("/api/analyze-text", json={"text": LONG_TEXT, "name": "   "})
+        assert resp.status_code == 200
+        assert resp.json()["results"][0]["name"] == "Custom Policy"
+
+
+@pytest.mark.asyncio
+class TestServicesWithAnalysis:
+    async def test_get_services_has_analysis_true(self, client, engine):
+        """When an analysis exists for a service, has_analysis should be True."""
+        factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with factory() as session:
+            svc = (await session.execute(sa_select(Service))).scalar_one()
+            analysis = PolicyAnalysis(
+                service_id=svc.id,
+                grade="A",
+                summary="Great",
+                red_flags="[]",
+                warnings="[]",
+                positives="[]",
+            )
+            session.add(analysis)
+            await session.commit()
+
+        resp = await client.get("/api/services")
+        data = resp.json()
+        assert data[0]["has_analysis"] is True
+
+
+@pytest.mark.asyncio
+class TestAnalyzeEdgeCases:
+    @patch("app.main.find_privacy_policy_url", new_callable=AsyncMock, return_value=None)
+    async def test_analyze_no_privacy_url_returns_na(self, mock_find, client, engine):
+        """Service with no privacy URL and LLM can't find one returns N/A."""
+        factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+        async with factory() as session:
+            svc = Service(
+                name="NoPolicy",
+                website_url="https://nopolicy.com",
+                privacy_policy_url=None,
+                is_popular=True,
+                icon="https://example.com/icon.png",
+            )
+            session.add(svc)
+            await session.commit()
+            await session.refresh(svc)
+            svc_id = svc.id
+
+        resp = await client.post("/api/analyze", json={"service_ids": [svc_id]})
+        assert resp.status_code == 200
+        data = resp.json()
+        result = next(r for r in data["results"] if r["service_id"] == svc_id)
+        assert result["grade"] == "N/A"
+        assert "Could not locate" in result["summary"]
+
+    @patch("app.main.get_service_actions", new_callable=AsyncMock, side_effect=RuntimeError("boom"))
+    @patch("app.main.analyze_policy", new_callable=AsyncMock, side_effect=RuntimeError("LLM error"))
+    async def test_analyze_llm_error_returns_na(self, mock_analyze, mock_actions, client):
+        services = (await client.get("/api/services")).json()
+        sid = services[0]["id"]
+
+        resp = await client.post("/api/analyze", json={"service_ids": [sid]})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["results"][0]["grade"] == "N/A"
+        assert "LLM API error" in data["results"][0]["summary"]
