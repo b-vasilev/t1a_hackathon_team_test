@@ -61,7 +61,7 @@ jobs:
       - name: Install frontend dependencies
         run: cd frontend && npm ci
 
-      - name: Run CI (check + test)
+      - name: Run CI (check + test + build)
         run: just ci
 
   deploy:
