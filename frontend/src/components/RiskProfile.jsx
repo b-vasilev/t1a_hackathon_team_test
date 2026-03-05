@@ -153,6 +153,55 @@ function actionCategoryIcon(category) {
   return icons[category] || '\u2139\uFE0F';
 }
 
+function FindingItem({ item, dotColor }) {
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const text = typeof item === 'object' ? item.text : item;
+  const quote = typeof item === 'object' ? item.quote : '';
+  const hasQuote = Boolean(quote);
+
+  return (
+    <li className="flex flex-col gap-1" style={{ color: 'var(--pl-text-muted)' }}>
+      <div className="flex gap-2 items-start">
+        <span style={{ color: dotColor }} className="shrink-0 mt-0.5">&#x25CF;</span>
+        <span className="flex-1">{text}</span>
+        {hasQuote && (
+          <button
+            onClick={() => setQuoteOpen(!quoteOpen)}
+            title={quoteOpen ? 'Hide policy excerpt' : 'Show policy excerpt'}
+            className="shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 cursor-pointer transition-colors"
+            style={{
+              fontSize: '0.65rem',
+              fontFamily: 'var(--font-mono)',
+              color: quoteOpen ? 'var(--pl-bg)' : 'var(--pl-text-muted)',
+              background: quoteOpen ? 'var(--pl-text-muted)' : 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.12)',
+            }}
+          >
+            <svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M3.5 6.5A3.5 3.5 0 0 1 7 10v.5a.5.5 0 0 1-1 0V10a2.5 2.5 0 1 0-5 0v.5a.5.5 0 0 1-1 0V10a3.5 3.5 0 0 1 3.5-3.5zm9 0A3.5 3.5 0 0 1 16 10v.5a.5.5 0 0 1-1 0V10a2.5 2.5 0 1 0-5 0v.5a.5.5 0 0 1-1 0V10a3.5 3.5 0 0 1 3.5-3.5z" />
+            </svg>
+            excerpt
+          </button>
+        )}
+      </div>
+      {hasQuote && quoteOpen && (
+        <blockquote
+          className="ml-5 pl-3 py-1 text-xs"
+          style={{
+            borderLeft: `2px solid ${dotColor}`,
+            color: 'var(--pl-text-muted)',
+            opacity: 0.75,
+            fontStyle: 'italic',
+            margin: 0,
+          }}
+        >
+          &ldquo;{quote}&rdquo;
+        </blockquote>
+      )}
+    </li>
+  );
+}
+
 function ServiceCard({ result, onRescan, isLoading }) {
   const [expanded, setExpanded] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -510,11 +559,9 @@ function ServiceCard({ result, onRescan, isLoading }) {
                 {result.red_flags?.length > 0 && (
                   <div>
                     <p className="font-medium mb-1" style={{ color: 'var(--pl-grade-f)' }}>Red Flags</p>
-                    <ul className="space-y-1">
+                    <ul className="space-y-1.5">
                       {result.red_flags.map((f, i) => (
-                        <li key={i} className="flex gap-2" style={{ color: 'var(--pl-text-muted)' }}>
-                          <span style={{ color: 'var(--pl-grade-f)' }} className="shrink-0">&#x25CF;</span>{typeof f === 'object' ? f.text : f}
-                        </li>
+                        <FindingItem key={i} item={f} dotColor="var(--pl-grade-f)" />
                       ))}
                     </ul>
                   </div>
@@ -522,11 +569,9 @@ function ServiceCard({ result, onRescan, isLoading }) {
                 {result.warnings?.length > 0 && (
                   <div>
                     <p className="font-medium mb-1" style={{ color: 'var(--pl-grade-c)' }}>Warnings</p>
-                    <ul className="space-y-1">
+                    <ul className="space-y-1.5">
                       {result.warnings.map((w, i) => (
-                        <li key={i} className="flex gap-2" style={{ color: 'var(--pl-text-muted)' }}>
-                          <span style={{ color: 'var(--pl-grade-c)' }} className="shrink-0">&#x25CF;</span>{typeof w === 'object' ? w.text : w}
-                        </li>
+                        <FindingItem key={i} item={w} dotColor="var(--pl-grade-c)" />
                       ))}
                     </ul>
                   </div>
@@ -534,11 +579,9 @@ function ServiceCard({ result, onRescan, isLoading }) {
                 {result.positives?.length > 0 && (
                   <div>
                     <p className="font-medium mb-1" style={{ color: 'var(--pl-grade-a)' }}>Positives</p>
-                    <ul className="space-y-1">
+                    <ul className="space-y-1.5">
                       {result.positives.map((c, i) => (
-                        <li key={i} className="flex gap-2" style={{ color: 'var(--pl-text-muted)' }}>
-                          <span style={{ color: 'var(--pl-grade-a)' }} className="shrink-0">&#x25CF;</span>{typeof c === 'object' ? c.text : c}
-                        </li>
+                        <FindingItem key={i} item={c} dotColor="var(--pl-grade-a)" />
                       ))}
                     </ul>
                   </div>
@@ -866,7 +909,8 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
         const worst = [...results].sort((a, b) => (GRADE_GPA[a.grade] ?? 99) - (GRADE_GPA[b.grade] ?? 99))[0];
         if (!worst || !LOW_GRADES.has(worst.grade)) { return null; }
         const topFlag = worst.red_flags?.[0];
-        const snippet = topFlag ? (typeof topFlag === 'object' ? topFlag.text : topFlag) : worst.summary;
+        const topFlagText = typeof topFlag === 'object' ? topFlag.text : topFlag;
+        const snippet = topFlag ? topFlagText : worst.summary;
         return (
           <div
             style={{

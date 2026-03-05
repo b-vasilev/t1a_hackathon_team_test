@@ -339,4 +339,83 @@ describe("RiskProfile", () => {
       screen.getByText(/All 2 services maintain strong privacy practices/)
     ).toBeInTheDocument();
   });
+
+  // ── Policy excerpt quote tests ──
+
+  it("shows excerpt toggle button when quote is present", () => {
+    const results = [
+      {
+        ...mockResults[0],
+        red_flags: [{ text: "Sells personal data", quote: "We may sell your personal information to third parties" }],
+        warnings: [],
+        positives: [],
+      },
+    ];
+    render(<RiskProfile overallGrade="B" results={results} />);
+    fireEvent.click(screen.getAllByTitle(/Show detailed findings/)[0]);
+    expect(screen.getByText("Sells personal data")).toBeInTheDocument();
+    expect(screen.getByTitle("Show policy excerpt")).toBeInTheDocument();
+  });
+
+  it("reveals quote text when excerpt button is clicked", () => {
+    const results = [
+      {
+        ...mockResults[0],
+        red_flags: [{ text: "Sells personal data", quote: "We may sell your personal information to third parties" }],
+        warnings: [],
+        positives: [],
+      },
+    ];
+    render(<RiskProfile overallGrade="B" results={results} />);
+    fireEvent.click(screen.getAllByTitle(/Show detailed findings/)[0]);
+    expect(screen.queryByText(/We may sell your personal information/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Show policy excerpt"));
+    expect(screen.getByText(/We may sell your personal information/)).toBeInTheDocument();
+  });
+
+  it("hides quote when excerpt button is clicked again", () => {
+    const results = [
+      {
+        ...mockResults[0],
+        red_flags: [{ text: "Sells personal data", quote: "We may sell your personal information to third parties" }],
+        warnings: [],
+        positives: [],
+      },
+    ];
+    render(<RiskProfile overallGrade="B" results={results} />);
+    fireEvent.click(screen.getAllByTitle(/Show detailed findings/)[0]);
+    fireEvent.click(screen.getByTitle("Show policy excerpt"));
+    expect(screen.getByText(/We may sell your personal information/)).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Hide policy excerpt"));
+    expect(screen.queryByText(/We may sell your personal information/)).not.toBeInTheDocument();
+  });
+
+  it("does not show excerpt button when quote is empty", () => {
+    const results = [
+      {
+        ...mockResults[0],
+        red_flags: [{ text: "Sells personal data", quote: "" }],
+        warnings: [],
+        positives: [],
+      },
+    ];
+    render(<RiskProfile overallGrade="B" results={results} />);
+    fireEvent.click(screen.getAllByTitle(/Show detailed findings/)[0]);
+    expect(screen.queryByTitle("Show policy excerpt")).not.toBeInTheDocument();
+  });
+
+  it("shows excerpt buttons for warnings and positives with quotes", () => {
+    const results = [
+      {
+        ...mockResults[0],
+        red_flags: [],
+        warnings: [{ text: "Retains data 5 years", quote: "we retain your data for a period of five years" }],
+        positives: [{ text: "Easy data deletion", quote: "You may request deletion of all personal data" }],
+      },
+    ];
+    render(<RiskProfile overallGrade="B" results={results} />);
+    fireEvent.click(screen.getAllByTitle(/Show detailed findings/)[0]);
+    const excerptBtns = screen.getAllByTitle("Show policy excerpt");
+    expect(excerptBtns).toHaveLength(2);
+  });
 });
