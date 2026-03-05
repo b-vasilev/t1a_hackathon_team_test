@@ -66,15 +66,17 @@ describe("Home page", () => {
     expect(screen.getByText(/T1A Hackathon 2026/)).toBeInTheDocument();
   });
 
-  it("defaults to analyze tab showing scan content", async () => {
+  it("defaults to about tab showing How It Works content", async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve([]),
     });
 
     render(<Home />);
-    // Analyze tab shows Add a Custom Service heading by default
-    expect(screen.getByText("Add a Custom Service")).toBeInTheDocument();
+    // About tab shows the three steps by default
+    expect(screen.getByText("Select services")).toBeInTheDocument();
+    expect(screen.getByText("Scan policies")).toBeInTheDocument();
+    expect(screen.getByText("Understand risk")).toBeInTheDocument();
   });
 
   it("renders sidebar with all navigation items", async () => {
@@ -200,8 +202,7 @@ describe("Home page", () => {
     });
 
     render(<Home />);
-    // Navigate to about tab first (default is now analyze)
-    fireEvent.click(screen.getByText("How It Works"));
+    // About tab is the default now
     expect(screen.getByText("Select services")).toBeInTheDocument();
     expect(screen.getByText("Scan policies")).toBeInTheDocument();
     expect(screen.getByText("Understand risk")).toBeInTheDocument();

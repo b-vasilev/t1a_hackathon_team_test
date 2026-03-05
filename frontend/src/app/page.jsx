@@ -43,7 +43,7 @@ const SCAN_MSGS = [
 ];
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState('analyze');
+  const [activeTab, setActiveTab] = useState('about');
   const [services, setServices] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [customServices, setCustomServices] = useState([]);
@@ -86,7 +86,7 @@ export default function Home() {
     setCustomServices(loadFromSession(SS_KEYS.customServices, []));
     setResults(loadFromSession(SS_KEYS.results, []));
     setOverallGrade(loadFromSession(SS_KEYS.overallGrade, null));
-    setActiveTab(loadFromSession(SS_KEYS.activeTab, 'analyze'));
+    setActiveTab(loadFromSession(SS_KEYS.activeTab, 'about'));
     setHydrated(true);
   }, []);
 
