@@ -23,6 +23,7 @@ on:
       - 'frontend/vitest.setup.js'
       - 'frontend/eslint.config.mjs'
       - 'backend/tests/conftest.py'
+      - '.pre-commit-config.yaml'
   workflow_dispatch:
     inputs:
       reset_db:

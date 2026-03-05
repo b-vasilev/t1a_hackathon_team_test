@@ -33,10 +33,10 @@ lint:
 fmt:
     cd backend && python -m ruff format app/
 
-# Run tests
+# Run tests with coverage thresholds (70% line coverage)
 test:
-    cd backend && python -m pytest tests/ -v
-    cd frontend && npm test
+    cd backend && python -m pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=70
+    cd frontend && npx vitest run --coverage --coverage.thresholds.lines=70
 
 # Format + lint all
 check: fmt lint
