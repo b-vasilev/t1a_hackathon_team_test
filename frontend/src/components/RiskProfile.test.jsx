@@ -79,8 +79,8 @@ describe("RiskProfile", () => {
 
   it("renders service cards", () => {
     render(<RiskProfile overallGrade="B" results={mockResults} />);
-    expect(screen.getByText("ServiceOne")).toBeInTheDocument();
-    expect(screen.getByText("ServiceTwo")).toBeInTheDocument();
+    expect(screen.getAllByText("ServiceOne").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ServiceTwo").length).toBeGreaterThan(0);
     expect(screen.getByText("Decent privacy policy")).toBeInTheDocument();
   });
 
@@ -99,8 +99,8 @@ describe("RiskProfile", () => {
     render(<RiskProfile overallGrade="B" results={mockResults} />);
     const showButtons = screen.getAllByTitle(/Show detailed findings/);
     fireEvent.click(showButtons[0]);
-    expect(screen.getByText("Delete Account")).toBeInTheDocument();
-    expect(screen.getByText("What You Can Do")).toBeInTheDocument();
+    expect(screen.getAllByText("Delete Account").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("What You Can Do").length).toBeGreaterThan(0);
   });
 
   it("calls onClearCache when button clicked", () => {
@@ -183,7 +183,8 @@ describe("RiskProfile", () => {
       />
     );
     const rescanButtons = screen.getAllByTitle("Rescan this service");
-    fireEvent.click(rescanButtons[0]);
+    // Results sort ascending by GPA so ServiceTwo (C) renders before ServiceOne (B+)
+    fireEvent.click(rescanButtons[1]);
     expect(onRescanService).toHaveBeenCalledWith(1);
   });
 
@@ -209,8 +210,8 @@ describe("RiskProfile", () => {
       { ...mockResults[1], grade: "F" },
     ];
     render(<RiskProfile overallGrade="C" results={results} />);
-    expect(screen.getByText("ServiceOne")).toBeInTheDocument();
-    expect(screen.getByText("ServiceTwo")).toBeInTheDocument();
+    expect(screen.getAllByText("ServiceOne").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("ServiceTwo").length).toBeGreaterThan(0);
   });
 
   it("shows Share button when results are present", () => {

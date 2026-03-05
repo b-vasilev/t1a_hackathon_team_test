@@ -10,7 +10,7 @@ describe("AddService", () => {
   it("renders input and Add button", () => {
     render(<AddService onAdd={() => {}} />);
     expect(
-      screen.getByPlaceholderText("https://example.com")
+      screen.getByPlaceholderText("https://example.com/privacy")
     ).toBeInTheDocument();
     expect(screen.getByRole("button")).toBeInTheDocument();
   });
@@ -26,7 +26,7 @@ describe("AddService", () => {
     const mockService = {
       id: 1,
       name: "Example",
-      website_url: "https://example.com",
+      website_url: "https://example.com/privacy",
     };
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
@@ -34,8 +34,8 @@ describe("AddService", () => {
     });
 
     render(<AddService onAdd={onAdd} />);
-    fireEvent.change(screen.getByPlaceholderText("https://example.com"), {
-      target: { value: "https://example.com" },
+    fireEvent.change(screen.getByPlaceholderText("https://example.com/privacy"), {
+      target: { value: "https://example.com/privacy" },
     });
     fireEvent.click(screen.getByRole("button"));
 
@@ -51,7 +51,7 @@ describe("AddService", () => {
     });
 
     render(<AddService onAdd={() => {}} />);
-    fireEvent.change(screen.getByPlaceholderText("https://example.com"), {
+    fireEvent.change(screen.getByPlaceholderText("https://example.com/privacy"), {
       target: { value: "bad-url" },
     });
     fireEvent.click(screen.getByRole("button"));
@@ -68,7 +68,7 @@ describe("AddService", () => {
     });
 
     render(<AddService onAdd={() => {}} />);
-    const input = screen.getByPlaceholderText("https://example.com");
+    const input = screen.getByPlaceholderText("https://example.com/privacy");
     fireEvent.change(input, { target: { value: "https://test.com" } });
     fireEvent.click(screen.getByRole("button"));
 
@@ -86,7 +86,7 @@ describe("AddService", () => {
     );
 
     render(<AddService onAdd={() => {}} />);
-    fireEvent.change(screen.getByPlaceholderText("https://example.com"), {
+    fireEvent.change(screen.getByPlaceholderText("https://example.com/privacy"), {
       target: { value: "https://test.com" },
     });
     fireEvent.click(screen.getByRole("button"));

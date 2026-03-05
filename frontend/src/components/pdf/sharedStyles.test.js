@@ -110,7 +110,7 @@ describe('formatDate', () => {
   });
 
   it('formats a valid date string', () => {
-    const result = formatDate('2026-01-15');
+    const result = formatDate('2026-01-15T12:00:00');
     expect(result).toContain('January');
     expect(result).toContain('15');
     expect(result).toContain('2026');

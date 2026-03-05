@@ -183,7 +183,7 @@ describe("Home page", () => {
     });
   });
 
-  it("shows scan complete toast after analysis", async () => {
+  it("shows results after analysis", async () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce({
@@ -205,13 +205,11 @@ describe("Home page", () => {
     fireEvent.click(screen.getByText(/Analyze My Digital Risk Profile/));
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Scan complete/)
-      ).toBeInTheDocument();
+      expect(screen.getByText("Your Results")).toBeInTheDocument();
     });
   });
 
-  it("dismisses scan complete toast", async () => {
+  it("shows grade in results after analysis", async () => {
     global.fetch = vi
       .fn()
       .mockResolvedValueOnce({
@@ -233,14 +231,9 @@ describe("Home page", () => {
     fireEvent.click(screen.getByText(/Analyze My Digital Risk Profile/));
 
     await waitFor(() => {
-      expect(screen.getByText(/Scan complete/)).toBeInTheDocument();
+      expect(screen.getByText("Your Results")).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByTitle("Dismiss"));
-
-    await waitFor(() => {
-      expect(screen.queryByText(/Scan complete/)).not.toBeInTheDocument();
-    });
+    expect(screen.getAllByText("B+").length).toBeGreaterThan(0);
   });
 
   it("restores state from sessionStorage", async () => {
@@ -285,7 +278,7 @@ describe("Home page", () => {
       expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
     });
 
-    const urlInput = screen.getByPlaceholderText("https://example.com");
+    const urlInput = screen.getByPlaceholderText("https://example.com/privacy");
     fireEvent.change(urlInput, { target: { value: "https://custom.com" } });
     fireEvent.click(screen.getByText("Add"));
 

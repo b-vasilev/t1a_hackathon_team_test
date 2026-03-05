@@ -782,12 +782,6 @@ async def analyze_policy(privacy_policy_url: str, service_name: str = "") -> dic
 
 
 
-async def analyze_text(policy_text: str, service_name: str = "") -> dict:
-    """Analyze a privacy policy from provided text, skipping the fetch step."""
-    logger.info("Analyzing provided text for '%s' (%d chars)", service_name, len(policy_text))
-    was_truncated = len(policy_text) > 80000
-    policy_text = policy_text[:80000]
-
 async def analyze_policy_text(text: str, service_name: str = "") -> dict:
     """Analyze a raw privacy policy text — no URL fetching."""
     logger.info("Analyzing raw policy text (%d chars) for '%s'", len(text), service_name or "<unnamed>")
@@ -795,16 +789,18 @@ async def analyze_policy_text(text: str, service_name: str = "") -> dict:
     if not text or len(text.strip()) < 50:
         return _empty_result("Policy text is too short to analyze.")
 
-
     try:
         raw = await _llm_call(
             system=GRADING_RUBRIC,
-            user=ANALYSIS_USER_PROMPT.format(policy_text=policy_text[:60000]),
+            user=ANALYSIS_USER_PROMPT.format(policy_text=text[:60000]),
             max_tokens=2048,
         )
     except LLMUnavailableError:
         logger.warning("LLM unavailable, returning mock analysis for '%s'", service_name)
-        return get_mock_analysis(service_name)
+        mock = get_mock_analysis(service_name)
+        mock["policy_text"] = text
+        mock["was_truncated"] = len(text) > 60000
+        return mock
 
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw)
