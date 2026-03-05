@@ -123,8 +123,8 @@ docker compose down -v
 # Run all tests (backend + frontend)
 just test
 
-# Backend tests with coverage
-cd backend && python -m pytest app/ -v --cov=app --cov-report=term-missing
+# Backend tests with coverage (tests live in backend/tests/, NOT app/)
+cd backend && python -m pytest -v --cov=app --cov-report=term-missing
 
 # Frontend tests
 cd frontend && npm test

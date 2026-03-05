@@ -47,11 +47,8 @@ jobs:
       - name: Install frontend dependencies
         run: cd frontend && npm ci
 
-      - name: Run checks
-        run: just check
-
-      - name: Run tests
-        run: just test
+      - name: Run CI (check + test)
+        run: just ci
 
   deploy:
     runs-on: ubuntu-latest

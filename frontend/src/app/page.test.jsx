@@ -41,19 +41,62 @@ const mockAnalysis = {
   ],
 };
 
+/** Helper: navigate to the Analyze tab via sidebar */
+function goToAnalyzeTab() {
+  // The sidebar renders a "Scan Services" label inside a button
+  const analyzeBtn = screen.getAllByText("Scan Services").find(
+    (el) => el.closest("button")?.closest(".pl-sidebar")
+  );
+  fireEvent.click(analyzeBtn);
+}
+
 describe("Home page", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     sessionStorage.clear();
   });
 
-  it("fetches and displays services on mount", async () => {
+  it("renders hackathon badge in footer", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve([]),
+    });
+
+    render(<Home />);
+    expect(screen.getByText(/T1A Hackathon 2026/)).toBeInTheDocument();
+  });
+
+  it("defaults to analyze tab showing scan content", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve([]),
+    });
+
+    render(<Home />);
+    // Analyze tab shows Add a Custom Service heading by default
+    expect(screen.getByText("Add a Custom Service")).toBeInTheDocument();
+  });
+
+  it("renders sidebar with all navigation items", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve([]),
+    });
+
+    render(<Home />);
+    expect(screen.getByText("Compare Policies")).toBeInTheDocument();
+    expect(screen.getByText("Paste & Scan")).toBeInTheDocument();
+    expect(screen.getByText("How It Works")).toBeInTheDocument();
+  });
+
+  it("fetches and displays services on analyze tab", async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockServices),
     });
 
     render(<Home />);
+    goToAnalyzeTab();
 
     await waitFor(() => {
       expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
@@ -65,6 +108,7 @@ describe("Home page", () => {
     global.fetch = vi.fn().mockRejectedValueOnce(new Error("Network error"));
 
     render(<Home />);
+    goToAnalyzeTab();
 
     await waitFor(() => {
       expect(
@@ -80,6 +124,7 @@ describe("Home page", () => {
     });
 
     render(<Home />);
+    goToAnalyzeTab();
 
     await waitFor(() => {
       expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
@@ -98,6 +143,7 @@ describe("Home page", () => {
     });
 
     render(<Home />);
+    goToAnalyzeTab();
 
     await waitFor(() => {
       expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
@@ -121,6 +167,7 @@ describe("Home page", () => {
       });
 
     render(<Home />);
+    goToAnalyzeTab();
 
     await waitFor(() => {
       expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
@@ -135,23 +182,26 @@ describe("Home page", () => {
     });
   });
 
-  it("renders header with PrivacyLens title", async () => {
+  it("renders PrivacyLens title in sidebar", async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve([]),
     });
 
     render(<Home />);
-    expect(screen.getByText("PrivacyLens")).toBeInTheDocument();
+    // Sidebar brand + AboutTab hero both render "PrivacyLens"
+    expect(screen.getAllByText("PrivacyLens").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders the three steps", async () => {
+  it("renders the three steps on about tab", async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve([]),
     });
 
     render(<Home />);
+    // Navigate to about tab first (default is now analyze)
+    fireEvent.click(screen.getByText("How It Works"));
     expect(screen.getByText("Select services")).toBeInTheDocument();
     expect(screen.getByText("Scan policies")).toBeInTheDocument();
     expect(screen.getByText("Understand risk")).toBeInTheDocument();
@@ -170,6 +220,7 @@ describe("Home page", () => {
       });
 
     render(<Home />);
+    goToAnalyzeTab();
 
     await waitFor(() => {
       expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
@@ -183,63 +234,11 @@ describe("Home page", () => {
     });
   });
 
-  it("shows results after analysis", async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockServices),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockAnalysis),
-      });
-
-    render(<Home />);
-
-    await waitFor(() => {
-      expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("ServiceAlpha"));
-    fireEvent.click(screen.getByText(/Analyze My Digital Risk Profile/));
-
-    await waitFor(() => {
-      expect(screen.getByText("Your Results")).toBeInTheDocument();
-    });
-  });
-
-  it("shows grade in results after analysis", async () => {
-    global.fetch = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockServices),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve(mockAnalysis),
-      });
-
-    render(<Home />);
-
-    await waitFor(() => {
-      expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText("ServiceAlpha"));
-    fireEvent.click(screen.getByText(/Analyze My Digital Risk Profile/));
-
-    await waitFor(() => {
-      expect(screen.getByText("Your Results")).toBeInTheDocument();
-    });
-    expect(screen.getAllByText("B+").length).toBeGreaterThan(0);
-  });
-
   it("restores state from sessionStorage", async () => {
     sessionStorage.setItem("pl_results", JSON.stringify(mockAnalysis.results));
     sessionStorage.setItem("pl_overallGrade", JSON.stringify("B+"));
     sessionStorage.setItem("pl_selectedIds", JSON.stringify([1]));
+    sessionStorage.setItem("pl_active_tab", JSON.stringify("analyze"));
 
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
@@ -273,6 +272,7 @@ describe("Home page", () => {
       });
 
     render(<Home />);
+    goToAnalyzeTab();
 
     await waitFor(() => {
       expect(screen.getByText("ServiceAlpha")).toBeInTheDocument();

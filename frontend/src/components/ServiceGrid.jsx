@@ -5,7 +5,7 @@ import ServiceIcon from '@/components/ServiceIcon';
 
 const CATEGORY_ORDER = ['All', 'Social', 'Messaging', 'Streaming', 'Shopping & Finance', 'Productivity'];
 
-export default function ServiceGrid({ services, selectedIds, onToggle, customServices, onRemoveCustom, compareMode = false, slotOrder = [] }) {
+export default function ServiceGrid({ services, selectedIds, onToggle, customServices, onRemoveCustom, compareMode = false, slotOrder = [], onDragStart }) {
   const [activeCategory, setActiveCategory] = useState('All');
 
   const allServices = [
@@ -37,7 +37,7 @@ export default function ServiceGrid({ services, selectedIds, onToggle, customSer
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className="px-3 py-1 rounded-full text-xs font-medium transition-all duration-150"
+              className="px-2.5 py-0.5 rounded-full text-[0.65rem] font-medium transition-all duration-150"
               style={
                 isActive
                   ? {
@@ -59,7 +59,7 @@ export default function ServiceGrid({ services, selectedIds, onToggle, customSer
       </div>
 
       {/* Service grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 stagger-children">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-2 stagger-children">
         {filtered.map((svc) => {
           const selected = selectedIds.has(svc.id);
           return (
@@ -67,9 +67,17 @@ export default function ServiceGrid({ services, selectedIds, onToggle, customSer
               key={svc.id}
               role="button"
               tabIndex={0}
+              draggable={Boolean(compareMode)}
+              onDragStart={(e) => {
+                if (compareMode && onDragStart) {
+                  e.dataTransfer.setData('text/plain', String(svc.id));
+                  e.dataTransfer.effectAllowed = 'move';
+                  onDragStart(svc.id);
+                }
+              }}
               onClick={() => onToggle(svc.id)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(svc.id); } }}
-              className="relative cursor-pointer rounded-xl p-4 flex flex-col items-center gap-2 select-none transition-all duration-200"
+              className="relative cursor-pointer rounded-lg p-2 flex flex-col items-center gap-1 select-none transition-all duration-200"
               style={
                 selected
                   ? {
@@ -116,9 +124,9 @@ export default function ServiceGrid({ services, selectedIds, onToggle, customSer
                   &#x2715;
                 </button>
               )}
-              <ServiceIcon icon={svc.icon} name={svc.name} />
+              <ServiceIcon icon={svc.icon} name={svc.name} size="sm" />
               <span
-                className="text-sm font-medium text-center leading-tight"
+                className="text-xs font-medium text-center leading-tight"
                 style={{ color: 'var(--pl-text)' }}
               >
                 {svc.name}

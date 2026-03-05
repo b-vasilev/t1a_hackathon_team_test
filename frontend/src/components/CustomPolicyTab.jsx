@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import RiskProfile from '@/components/RiskProfile';
+import SudokuNudge from '@/components/SudokuNudge';
 
 const SS_KEYS = {
   text: 'pl_custom_text',
@@ -11,6 +12,15 @@ const SS_KEYS = {
 
 const MIN_CHARS = 50;
 const TRUNCATION_WARN = 55000;
+
+const SCAN_MESSAGES = [
+  'Parsing policy text...',
+  'Detecting data collection clauses...',
+  'Analyzing third-party sharing...',
+  'Evaluating user rights...',
+  'Scoring risk factors...',
+  'Generating report...',
+];
 
 function loadFromSession(key, fallback) {
   if (typeof window === 'undefined') { return fallback; }
@@ -35,6 +45,7 @@ export default function CustomPolicyTab() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [hydrated, setHydrated] = useState(false);
+  const [scanMsg, setScanMsg] = useState('');
 
   // Hydrate from sessionStorage after mount
   useEffect(() => {
@@ -72,6 +83,18 @@ export default function CustomPolicyTab() {
       sessionStorage.removeItem(SS_KEYS.results);
     }
   }, [results, overallGrade, hydrated]);
+
+  // Cycling progress messages
+  useEffect(() => {
+    if (!isLoading) { setScanMsg(''); return; }
+    let i = 0;
+    setScanMsg(SCAN_MESSAGES[0]);
+    const iv = setInterval(() => {
+      i = (i + 1) % SCAN_MESSAGES.length;
+      setScanMsg(SCAN_MESSAGES[i]);
+    }, 2800);
+    return () => clearInterval(iv);
+  }, [isLoading]);
 
   const canAnalyze = policyText.trim().length >= MIN_CHARS;
 
@@ -122,6 +145,16 @@ export default function CustomPolicyTab() {
 
   return (
     <div className="flex flex-col gap-8">
+      {/* Page heading */}
+      <section className="flex flex-col gap-1">
+        <h2 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
+          Paste &amp; Scan
+        </h2>
+        <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.875rem' }}>
+          Paste any privacy policy text and get an instant grade with key findings.
+        </p>
+      </section>
+
       {/* Input section */}
       <section className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
@@ -204,20 +237,49 @@ export default function CustomPolicyTab() {
         <button
           onClick={handleAnalyze}
           disabled={!canAnalyze || isLoading}
-          className="px-8 py-3 rounded-full font-semibold text-sm transition-all cursor-pointer"
-          style={
-            canAnalyze && !isLoading
-              ? { background: 'var(--pl-accent)', color: 'var(--pl-bg)' }
-              : {
-                  background: 'var(--pl-surface)',
-                  color: 'var(--pl-text-dim)',
-                  border: '1px solid var(--pl-border)',
-                  cursor: 'not-allowed',
-                }
-          }
+          className={`px-8 py-3 rounded-full font-semibold text-sm transition-all cursor-pointer ${isLoading ? 'scan-loading' : ''}`}
+          style={(() => {
+            if (canAnalyze && !isLoading) {
+              return { background: 'var(--pl-accent)', color: 'var(--pl-bg)' };
+            }
+            if (isLoading) {
+              return { background: 'var(--pl-accent)', color: 'var(--pl-bg)' };
+            }
+            return {
+              background: 'var(--pl-surface)',
+              color: 'var(--pl-text-dim)',
+              border: '1px solid var(--pl-border)',
+              cursor: 'not-allowed',
+            };
+          })()}
         >
-          {isLoading ? 'Analyzing…' : 'Analyze Policy'}
+          {isLoading ? (
+            <span className="flex items-center gap-3">
+              <div
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '50%',
+                  border: '2px solid var(--pl-bg)',
+                  borderTopColor: 'transparent',
+                  animation: 'xraySpin 0.8s linear infinite',
+                }}
+              />
+              Analyzing…
+            </span>
+          ) : 'Analyze Policy'}
         </button>
+        {isLoading && scanMsg && (
+          <p aria-live="polite" role="status" style={{
+            color: 'var(--pl-accent)', fontSize: '0.75rem',
+            fontFamily: 'var(--font-mono)', animation: 'fadeInUp 0.3s ease forwards',
+            display: 'flex', alignItems: 'center', gap: '6px',
+          }}>
+            <span style={{ opacity: 0.6 }}>&rsaquo;</span>
+            {scanMsg}
+          </p>
+        )}
+        <SudokuNudge />
       </section>
 
       {/* Results section */}

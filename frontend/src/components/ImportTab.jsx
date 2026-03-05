@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const GRADE_COLOR = {
   'A+': '#00e5ff', 'A': '#00e5ff', 'A-': '#00e5ff',
@@ -35,6 +35,15 @@ function FindingRow({ icon, color, items, label }) {
   );
 }
 
+const IMPORT_MESSAGES = [
+  'Parsing policy text...',
+  'Detecting data collection clauses...',
+  'Analyzing third-party sharing...',
+  'Evaluating user rights...',
+  'Scoring risk factors...',
+  'Generating report...',
+];
+
 export default function ImportTab({ onSaveService }) {
   const [name, setName] = useState('');
   const [text, setText] = useState('');
@@ -42,6 +51,19 @@ export default function ImportTab({ onSaveService }) {
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
   const [savedToCompare, setSavedToCompare] = useState(false);
+  const [scanMsg, setScanMsg] = useState('');
+
+  // Cycling progress messages
+  useEffect(() => {
+    if (!isLoading) { setScanMsg(''); return; }
+    let i = 0;
+    setScanMsg(IMPORT_MESSAGES[0]);
+    const iv = setInterval(() => {
+      i = (i + 1) % IMPORT_MESSAGES.length;
+      setScanMsg(IMPORT_MESSAGES[i]);
+    }, 2800);
+    return () => clearInterval(iv);
+  }, [isLoading]);
 
   const handleAnalyze = async () => {
     if (!text.trim()) { return; }
@@ -126,12 +148,32 @@ export default function ImportTab({ onSaveService }) {
           <button
             onClick={handleAnalyze}
             disabled={!text.trim() || isLoading}
-            style={text.trim() && !isLoading
-              ? { background: 'var(--pl-accent)', color: 'var(--pl-bg)', fontWeight: 600, padding: '10px 24px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }
-              : { background: 'var(--pl-surface-2)', color: 'var(--pl-text-dim)', padding: '10px 24px', borderRadius: '10px', border: 'none', fontSize: '0.875rem', opacity: 0.6, cursor: 'not-allowed' }
-            }
+            className={isLoading ? 'scan-loading' : ''}
+            style={(() => {
+              if (text.trim() && !isLoading) {
+                return { background: 'var(--pl-accent)', color: 'var(--pl-bg)', fontWeight: 600, padding: '10px 24px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '0.875rem' };
+              }
+              if (isLoading) {
+                return { background: 'var(--pl-accent)', color: 'var(--pl-bg)', fontWeight: 600, padding: '10px 24px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '0.875rem' };
+              }
+              return { background: 'var(--pl-surface-2)', color: 'var(--pl-text-dim)', padding: '10px 24px', borderRadius: '10px', border: 'none', fontSize: '0.875rem', opacity: 0.6, cursor: 'not-allowed' };
+            })()}
           >
-            {isLoading ? 'Analyzing...' : 'Analyze Policy'}
+            {isLoading ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    border: '2px solid var(--pl-bg)',
+                    borderTopColor: 'transparent',
+                    animation: 'xraySpin 0.8s linear infinite',
+                  }}
+                />
+                Analyzing...
+              </span>
+            ) : 'Analyze Policy'}
           </button>
           {text.trim() && (
             <span style={{ fontSize: '0.72rem', color: 'var(--pl-text-dim)', fontFamily: 'var(--font-mono)' }}>
@@ -139,6 +181,17 @@ export default function ImportTab({ onSaveService }) {
             </span>
           )}
         </div>
+        {isLoading && scanMsg && (
+          <p aria-live="polite" role="status" style={{
+            color: 'var(--pl-accent)', fontSize: '0.75rem',
+            fontFamily: 'var(--font-mono)', animation: 'fadeInUp 0.3s ease forwards',
+            display: 'flex', alignItems: 'center', gap: '6px',
+            margin: 0,
+          }}>
+            <span style={{ opacity: 0.6 }}>&rsaquo;</span>
+            {scanMsg}
+          </p>
+        )}
         {error && (
           <p style={{ color: 'var(--pl-grade-f)', fontSize: '0.82rem', background: 'rgba(255,23,68,0.1)', border: '1px solid rgba(255,23,68,0.3)', borderRadius: '8px', padding: '8px 12px' }}>
             {error}
