@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import RiskProfile from '@/components/RiskProfile';
+import SudokuNudge from '@/components/SudokuNudge';
 
 async function fetchReport(id) {
   const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
@@ -70,7 +71,16 @@ export default async function SharedReportPage({ params }) {
   });
 
   return (
-    <main className="min-h-screen px-4 py-8 max-w-4xl mx-auto flex flex-col gap-6">
+    <main className="min-h-screen px-4 py-8 max-w-6xl mx-auto flex flex-col gap-6">
+      <section className="flex flex-col gap-1">
+        <h1 className="text-lg font-semibold" style={{ fontFamily: 'var(--font-heading)', color: 'var(--pl-text)' }}>
+          Shared Report
+        </h1>
+        <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.875rem' }}>
+          Someone shared a privacy policy analysis with you.
+        </p>
+      </section>
+
       <div
         data-testid="shared-banner"
         className="rounded-xl px-4 py-3 flex items-center justify-between gap-3 text-sm flex-wrap"
@@ -93,6 +103,8 @@ export default async function SharedReportPage({ params }) {
       </div>
 
       <RiskProfile overallGrade={data.overall_grade} results={data.results} />
+
+      <SudokuNudge style={{ alignSelf: 'center' }} />
     </main>
   );
 }

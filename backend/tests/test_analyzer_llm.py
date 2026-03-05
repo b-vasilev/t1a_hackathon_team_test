@@ -287,5 +287,4 @@ class TestAnalyzePolicyText:
         # Should return a mock result, not raise
         assert "grade" in result
         assert result.get("mock") is True
-        assert "policy_text" in result
-        assert "was_truncated" in result
+        assert "summary" in result

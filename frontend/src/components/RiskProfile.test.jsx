@@ -183,9 +183,9 @@ describe("RiskProfile", () => {
       />
     );
     const rescanButtons = screen.getAllByTitle("Rescan this service");
-    // Results sort ascending by GPA so ServiceTwo (C) renders before ServiceOne (B+)
-    fireEvent.click(rescanButtons[1]);
-    expect(onRescanService).toHaveBeenCalledWith(1);
+    fireEvent.click(rescanButtons[0]);
+    // Results are sorted by grade (worst first), so index 0 is service_id 2 (grade "C")
+    expect(onRescanService).toHaveBeenCalledWith(2);
   });
 
   it("collapses details when clicked again", () => {

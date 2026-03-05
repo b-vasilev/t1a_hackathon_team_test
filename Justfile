@@ -41,6 +41,9 @@ test:
 # Format + lint all
 check: fmt lint
 
-# Full CI: lint + test + build
-ci: lint test
+# Build frontend
+build:
     cd frontend && npm run build
+
+# Full CI: check + test + build
+ci: check test build

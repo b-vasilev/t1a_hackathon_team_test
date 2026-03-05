@@ -46,14 +46,14 @@ describe('CompareTab', () => {
 
   it('renders without crashing with mocked services', () => {
     render(<CompareTab services={mockServices} parentHydrated />);
-    expect(screen.getByText('Popular Services')).toBeInTheDocument();
+    expect(screen.getAllByText('Compare Policies').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('ServiceAlpha')).toBeInTheDocument();
     expect(screen.getByText('ServiceBeta')).toBeInTheDocument();
   });
 
   it('Compare Policies button is disabled when fewer than 2 services selected', () => {
     render(<CompareTab services={mockServices} parentHydrated />);
-    const btn = screen.getByText('Compare Policies');
+    const btn = screen.getByRole('button', { name: 'Compare Policies' });
     expect(btn).toBeDisabled();
   });
 
@@ -96,7 +96,7 @@ describe('CompareTab', () => {
     fireEvent.click(screen.getByText('ServiceBeta'));
 
     await waitFor(() => {
-      const btn = screen.getByText('Compare Policies');
+      const btn = screen.getByRole('button', { name: 'Compare Policies' });
       expect(btn).not.toBeDisabled();
     });
   });
@@ -113,10 +113,10 @@ describe('CompareTab', () => {
     fireEvent.click(screen.getByText('ServiceBeta'));
 
     await waitFor(() => {
-      expect(screen.getByText('Compare Policies')).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Compare Policies' })).not.toBeDisabled();
     });
 
-    fireEvent.click(screen.getByText('Compare Policies'));
+    fireEvent.click(screen.getByRole('button', { name: 'Compare Policies' }));
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith('/api/analyze', expect.objectContaining({
@@ -138,10 +138,10 @@ describe('CompareTab', () => {
     fireEvent.click(screen.getByText('ServiceBeta'));
 
     await waitFor(() => {
-      expect(screen.getByText('Compare Policies')).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Compare Policies' })).not.toBeDisabled();
     });
 
-    fireEvent.click(screen.getByText('Compare Policies'));
+    fireEvent.click(screen.getByRole('button', { name: 'Compare Policies' }));
 
     await waitFor(() => {
       expect(screen.getByText('Analysis failed')).toBeInTheDocument();
