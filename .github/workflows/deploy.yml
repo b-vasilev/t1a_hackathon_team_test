@@ -42,7 +42,7 @@ jobs:
           tool: just
 
       - name: Install backend dependencies
-        run: cd backend && pip install . && pip install pytest pytest-cov pytest-asyncio httpx
+        run: cd backend && pip install ".[dev]"
 
       - name: Install frontend dependencies
         run: cd frontend && npm ci
