@@ -62,11 +62,11 @@ export default function SudokuPage() {
           PrivacyLens Sudoku
         </h1>
         <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}>
-          {scanDone
-            ? 'Scan finished — your results are waiting!'
-            : isScanning
-              ? 'Scanning your privacy policies...'
-              : 'Play while we scan your privacy policies.'}
+          {(() => {
+            if (scanDone) { return 'Scan finished — your results are waiting!'; }
+            if (isScanning) { return 'Scanning your privacy policies...'; }
+            return 'Play while we scan your privacy policies.';
+          })()}
         </p>
       </div>
 

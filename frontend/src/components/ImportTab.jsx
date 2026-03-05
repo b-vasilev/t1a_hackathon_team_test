@@ -20,7 +20,7 @@ const CATEGORY_LABELS = {
 };
 
 function FindingRow({ icon, color, items, label }) {
-  if (!items || items.length === 0) return null;
+  if (!items || items.length === 0) { return null; }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
       <span style={{ fontSize: '0.72rem', fontFamily: 'var(--font-mono)', color: 'var(--pl-text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -44,7 +44,7 @@ export default function ImportTab({ onSaveService }) {
   const [savedToCompare, setSavedToCompare] = useState(false);
 
   const handleAnalyze = async () => {
-    if (!text.trim()) return;
+    if (!text.trim()) { return; }
     setIsLoading(true);
     setError('');
     setResult(null);
