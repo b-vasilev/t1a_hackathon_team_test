@@ -892,7 +892,16 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
         );
       })()}
 
-      {/* Aggregated Action Plan */}
+      {/* Per-service cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 stagger-children">
+        {[...results]
+          .sort((a, b) => (GRADE_GPA[a.grade] ?? 99) - (GRADE_GPA[b.grade] ?? 99))
+          .map((r) => (
+            <ServiceCard key={r.service_id} result={r} onRescan={onRescanService} isLoading={isLoading} />
+          ))}
+      </div>
+
+      {/* What You Can Do */}
       {(() => {
         const actions = [...results]
           .sort((a, b) => (GRADE_GPA[a.grade] ?? 99) - (GRADE_GPA[b.grade] ?? 99))
@@ -914,7 +923,7 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '0.95rem' }}>📋</span>
               <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'var(--pl-text)', fontSize: '0.95rem' }}>
-                Your Action Plan
+                What You Can Do
               </span>
               <span style={{ fontSize: '0.68rem', color: 'var(--pl-text-dim)', fontFamily: 'var(--font-mono)', marginLeft: 'auto' }}>
                 top {actions.length} priority steps
@@ -938,8 +947,16 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--pl-text)' }}>{action.label}</span>
-                      <span style={{ fontSize: '0.68rem', color: 'var(--pl-text-dim)', fontFamily: 'var(--font-mono)' }}>
-                        [{action.serviceName}]
+                      <span style={{
+                        fontSize: '0.65rem',
+                        color: 'var(--pl-accent)',
+                        fontFamily: 'var(--font-mono)',
+                        background: 'rgba(0, 229, 255, 0.08)',
+                        border: '1px solid rgba(0, 229, 255, 0.2)',
+                        borderRadius: '4px',
+                        padding: '1px 5px',
+                      }}>
+                        {action.serviceName}
                       </span>
                     </div>
                     {action.description && (
@@ -964,15 +981,6 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
           </div>
         );
       })()}
-
-      {/* Per-service cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 stagger-children">
-        {[...results]
-          .sort((a, b) => (GRADE_GPA[a.grade] ?? 99) - (GRADE_GPA[b.grade] ?? 99))
-          .map((r) => (
-            <ServiceCard key={r.service_id} result={r} onRescan={onRescanService} isLoading={isLoading} />
-          ))}
-      </div>
 
       {shareUrl && <ShareModal url={shareUrl} onClose={() => setShareUrl(null)} />}
     </div>

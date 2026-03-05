@@ -13,7 +13,6 @@ const SS_KEYS = {
   results: 'pl_results',
   overallGrade: 'pl_overallGrade',
   activeTab: 'pl_active_tab',
-  noSudoku: 'pl_no_sudoku',
 };
 
 function loadFromSession(key, fallback) {
@@ -52,7 +51,7 @@ export default function Home() {
   const [error, setError] = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
-  const [noSudoku, setNoSudoku] = useState(false);
+  const [heroExpanded, setHeroExpanded] = useState(true);
   const [scanMsg, setScanMsg] = useState('');
   const sudokuWindowRef = useRef(null);
   const resultsRef = useRef(null);
@@ -101,7 +100,6 @@ export default function Home() {
     setResults(loadFromSession(SS_KEYS.results, []));
     setOverallGrade(loadFromSession(SS_KEYS.overallGrade, null));
     setActiveTab(loadFromSession(SS_KEYS.activeTab, 'analyze'));
-    setNoSudoku(Boolean(loadFromSession(SS_KEYS.noSudoku, false)));
     setHydrated(true);
   }, []);
 
@@ -172,11 +170,6 @@ export default function Home() {
       scanMsgTimerRef.current = setTimeout(advanceMsg, 2800);
     };
     scanMsgTimerRef.current = setTimeout(advanceMsg, 2800);
-
-    // Open Sudoku popup unless user opted out
-    if (!noSudoku) {
-      openSudokuPopup();
-    }
 
     try {
       const res = await fetch('/api/analyze', {
@@ -275,8 +268,47 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Hero - collapsible */}
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+        <button
+          onClick={() => setHeroExpanded((v) => !v)}
+          aria-label={heroExpanded ? 'Collapse intro' : 'Expand intro'}
+          style={{
+            alignSelf: 'flex-end',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            background: 'none',
+            border: '1px solid var(--pl-border)',
+            borderRadius: '6px',
+            padding: '3px 10px',
+            cursor: 'pointer',
+            color: 'var(--pl-text-dim)',
+            fontSize: '0.7rem',
+            fontFamily: 'var(--font-mono)',
+            transition: 'color 0.2s, border-color 0.2s',
+            marginBottom: '8px',
+          }}
+        >
+          {heroExpanded ? 'collapse' : 'expand'}
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ transform: heroExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s ease' }}
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        <div className={`details-collapse${heroExpanded ? ' open' : ''}`}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '48px', alignItems: 'center' }}>
       {/* Hero */}
-      <header className="hero-section scan-line relative flex flex-col gap-5 text-center items-center self-center" style={{ width: '100%', maxWidth: '720px' }}>
+      <header className="hero-section relative flex flex-col gap-5 text-center items-center self-center" style={{ width: '100%', maxWidth: '720px' }}>
         <Image
           src="/policy-icon.svg"
           alt="PrivacyLens icon"
@@ -466,6 +498,9 @@ export default function Home() {
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>
+          </div>
+        </div>
+      </div>
 
       {activeTab === 'analyze' && (
         <>
@@ -588,27 +623,6 @@ export default function Home() {
               </button>
               {' '}instead. Your data will be harvested either way. Share your sudoku success with friends!
             </p>
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '0.7rem',
-                color: 'var(--pl-text-muted)',
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={noSudoku}
-                onChange={(e) => {
-                  setNoSudoku(e.target.checked);
-                  saveToSession(SS_KEYS.noSudoku, e.target.checked || null);
-                }}
-                style={{ accentColor: 'var(--pl-accent)', cursor: 'pointer' }}
-              />
-              Skip Sudoku popup during scans
-            </label>
           </section>
 
           {/* Results */}
