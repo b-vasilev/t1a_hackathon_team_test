@@ -50,6 +50,21 @@ PrivacyLens fetches the actual privacy policy text, sends it through Claude AI f
 
 ---
 
+## What Sets Us Apart
+
+Most privacy policy tools (like TL;DR Privacy or ToS;DR) give you a static summary or a simple thumbs-up/thumbs-down rating. PrivacyLens goes further:
+
+- **Structured grading, not just a label** — 5 category scores (A+ to F) with weighted GPA averaging, so you see exactly *where* a policy is strong or weak.
+- **Verbatim evidence** — Every finding links to the exact quote in the policy. Click it, see it highlighted in the full text. No "trust us" summaries.
+- **Interactive Q&A** — Ask follow-up questions ("Can they sell my data?") and get answers grounded in the actual policy, not generic advice.
+- **Actionable steps** — Direct links to delete your account, download your data, or change privacy settings — discovered automatically via web search.
+- **Any URL, any policy** — Not limited to a fixed database. Paste any URL and the AI finds the privacy policy automatically.
+- **Side-by-side comparison** — Compare services head-to-head across all 5 categories to make informed choices.
+- **Resilient fetching** — 4-layer fallback (direct → Jina AI → Google Cache → Wayback Machine) means we can read policies that block other tools.
+- **Shareable reports** — Export PDF reports or share a direct link to any analysis with your team or compliance reviewers.
+
+---
+
 ## Architecture
 
 ```
@@ -203,4 +218,4 @@ cd frontend && npm test
 
 ## Team
 
-Built by Test team at the T1A Hackathon, March 4–5, 2026.
+Built by Test team at the T1A Vibe Coding Hackathon (LLM-powered development), March 4–5, 2026.
