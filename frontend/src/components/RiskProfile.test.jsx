@@ -1,5 +1,5 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import RiskProfile from "./RiskProfile";
 
 const mockResults = [
@@ -39,6 +39,10 @@ const mockResults = [
 ];
 
 describe("RiskProfile", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("returns null when no results", () => {
     const { container } = render(
       <RiskProfile overallGrade="N/A" results={[]} />
@@ -115,7 +119,7 @@ describe("RiskProfile", () => {
 
   it("shows service count", () => {
     render(<RiskProfile overallGrade="B" results={mockResults} />);
-    expect(screen.getByText(/2 service/)).toBeInTheDocument();
+    expect(screen.getByText(/Based on 2 service/)).toBeInTheDocument();
   });
 
   it("does not show mock banner for real results", () => {
@@ -207,5 +211,132 @@ describe("RiskProfile", () => {
     render(<RiskProfile overallGrade="C" results={results} />);
     expect(screen.getByText("ServiceOne")).toBeInTheDocument();
     expect(screen.getByText("ServiceTwo")).toBeInTheDocument();
+  });
+
+  it("shows Share button when results are present", () => {
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    expect(screen.getByTestId("share-button")).toBeInTheDocument();
+  });
+
+  it("clicking Share button opens modal with correct URL", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "abc123def456" }),
+    });
+
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    fireEvent.click(screen.getByTestId("share-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("share-url-input")).toBeInTheDocument();
+    });
+
+    const input = screen.getByTestId("share-url-input");
+    expect(input.value).toContain("/report/abc123def456");
+  });
+
+  it("Copy button writes to clipboard and shows Copied!", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "abc123def456" }),
+    });
+    const writeTextMock = vi.fn().mockResolvedValueOnce(undefined);
+    Object.assign(navigator, { clipboard: { writeText: writeTextMock } });
+
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    fireEvent.click(screen.getByTestId("share-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("copy-button")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("copy-button"));
+
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalled();
+      expect(screen.getByText("Copied!")).toBeInTheDocument();
+    });
+  });
+
+  it("Close button dismisses the share modal", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "abc123def456" }),
+    });
+
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    fireEvent.click(screen.getByTestId("share-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("share-url-input")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByLabelText("Close share modal"));
+    expect(screen.queryByTestId("share-url-input")).not.toBeInTheDocument();
+  });
+
+  // ── TL;DR tests ──
+
+  it("shows tldr text when available on service card", () => {
+    const resultsWithTldr = [
+      { ...mockResults[0], tldr: "Short TL;DR for ServiceOne" },
+      mockResults[1],
+    ];
+    render(<RiskProfile overallGrade="B" results={resultsWithTldr} />);
+    expect(screen.getByText("Short TL;DR for ServiceOne")).toBeInTheDocument();
+    // summary should NOT appear when tldr is present
+    expect(screen.queryByText("Decent privacy policy")).not.toBeInTheDocument();
+  });
+
+  it("falls back to summary when tldr is missing", () => {
+    // mockResults[0] has no tldr field, so summary should show
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    expect(screen.getByText("Decent privacy policy")).toBeInTheDocument();
+    expect(screen.getByText("Below average policy")).toBeInTheDocument();
+  });
+
+  it("displays overall TL;DR in risk profile header", () => {
+    render(<RiskProfile overallGrade="B" results={mockResults} />);
+    // mockResults: B+ and C → 1 good, 1 not good → "Mixed results across 2 services — 1 need attention"
+    expect(
+      screen.getByText(/Mixed results across 2 services/)
+    ).toBeInTheDocument();
+  });
+
+  it("shows appropriate message for mostly bad grades", () => {
+    const badResults = [
+      { ...mockResults[0], grade: "D", red_flags: [], warnings: [], positives: [] },
+      { ...mockResults[1], grade: "F" },
+      {
+        service_id: 3,
+        name: "ServiceThree",
+        icon: "https://example.com/three.png",
+        grade: "D-",
+        summary: "Poor policy",
+        red_flags: [],
+        warnings: [],
+        positives: [],
+        categories: {},
+        highlights: [],
+        actions: [],
+      },
+    ];
+    render(<RiskProfile overallGrade="D" results={badResults} />);
+    // 3 out of 3 are D/F → poor > total/2
+    expect(
+      screen.getByText(/3 of 3 services pose significant privacy risks/)
+    ).toBeInTheDocument();
+  });
+
+  it("shows appropriate message for mostly good grades", () => {
+    const goodResults = [
+      { ...mockResults[0], grade: "A+" },
+      { ...mockResults[1], grade: "B+", summary: "Good policy" },
+    ];
+    render(<RiskProfile overallGrade="A" results={goodResults} />);
+    // All are A/B → good === total
+    expect(
+      screen.getByText(/All 2 services maintain strong privacy practices/)
+    ).toBeInTheDocument();
   });
 });

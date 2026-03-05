@@ -121,6 +121,25 @@ class TestNormalize:
         result = _normalize({})
         assert result["summary"] == "Analysis complete."
 
+    def test_tldr_extracted(self):
+        data = {"tldr": "Short punchy summary.", "highlights": ["First highlight"]}
+        result = _normalize(data)
+        assert result["tldr"] == "Short punchy summary."
+
+    def test_tldr_fallback_to_first_highlight(self):
+        data = {"highlights": ["First highlight", "Second"]}
+        result = _normalize(data)
+        assert result["tldr"] == "First highlight"
+
+    def test_tldr_fallback_when_empty_string(self):
+        data = {"tldr": "", "highlights": ["First highlight"]}
+        result = _normalize(data)
+        assert result["tldr"] == "First highlight"
+
+    def test_tldr_fallback_no_highlights(self):
+        result = _normalize({})
+        assert result["tldr"] == "Analysis complete."
+
     def test_grade_computed_from_categories(self):
         data = {
             "categories": {
@@ -140,6 +159,7 @@ class TestEmptyResult:
         result = _empty_result("Something went wrong")
         assert result["grade"] == "N/A"
         assert result["summary"] == "Something went wrong"
+        assert result["tldr"] == "Something went wrong"
         assert result["red_flags"] == []
         assert result["warnings"] == []
         assert result["positives"] == []

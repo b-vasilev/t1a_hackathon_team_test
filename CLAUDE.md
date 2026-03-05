@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with the PolicyLens hackathon project.
+This file provides guidance to Claude Code when working with the PrivacyLens hackathon project.
 
 ## Project Overview
 
-**PolicyLens** — "Know what you're agreeing to." Fetches and analyzes privacy policies of online services using Claude AI. Users select popular services or paste any URL, and the app grades each policy from A+ to F, surfacing red flags, warnings, and positives in plain English.
+**PrivacyLens** — "Know what you're agreeing to." Fetches and analyzes privacy policies of online services using Claude AI. Users select popular services or paste any URL, and the app grades each policy from A+ to F, surfacing red flags, warnings, and positives in plain English.
 
 No account required. All client state lives in `sessionStorage`.
 
@@ -93,7 +93,7 @@ Tie-breaker order: Real-world Usefulness → Solution Quality → judge vote.
 - **Before making any changes, outline your plan in 3-5 bullet points.** Include which files you'll change and why. Wait for approval before proceeding.
 - **Always create a task list for multi-step work** — When a task involves more than 2 actions, create a task list using the TaskCreate tool.
 - **Re-read implementation plan after each phase** — When implementing a multi-phase plan, MANDATORY: after completing each phase, re-read the plan file to ensure you haven't deviated.
-- Never set yourself as the git commit author. Do not add a "Co-Authored-By" trailer to commit messages.
+- Never set yourself as the git commit author. Do not add a "Co-Authored-By" trailer to commit messages or pull request descriptions.
 - When asked to find a file, always start with `find . -name '<filename>' -maxdepth 3` or `ls` in the project root before claiming a file doesn't exist.
 - **Always search project root first** — When looking for project-level files, check the project root directory first with a direct path.
 - **Always run `just check` after code changes** — This runs both formatter (`ruff format`) and linter (`ruff check` + ESLint) in one command. Fix any issues before committing.

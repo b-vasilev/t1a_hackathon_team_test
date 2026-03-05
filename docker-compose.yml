@@ -8,7 +8,7 @@ services:
       - LLM_BASE_URL=${LLM_BASE_URL:-}
       - LLM_MODEL=${LLM_MODEL:-anthropic/claude-haiku-4-5-20251001}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - DATABASE_URL=sqlite:////data/policylens.db
+      - DATABASE_URL=sqlite:////data/privacylens.db
     volumes:
       - ./data:/data
     networks:
@@ -24,7 +24,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "3000:3000"
+      - "${APP_PORT:-3000}:3000"
     environment:
       - BACKEND_URL=http://backend:8000
     depends_on:

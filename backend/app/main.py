@@ -5,11 +5,12 @@ import os
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Path, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -22,6 +23,7 @@ from .analyzer import (
     LLMUnavailableError,
     analyze_policy,
     analyze_text,
+    analyze_policy_text,
     average_grade,
     chat_about_policy,
     find_privacy_policy_url,
@@ -31,14 +33,14 @@ from .analyzer import (
 )
 from .database import Base, SessionLocal, engine, get_db
 from .logging_config import setup_logging
-from .models import PolicyAnalysis, PolicyText, Service
+from .models import PolicyAnalysis, PolicyText, Service, SharedReport
 from .seed import seed_popular_services
 
 POLICY_CACHE_TTL_DAYS = int(os.getenv("POLICY_CACHE_TTL_DAYS", "7"))
 RATE_LIMIT = os.getenv("RATE_LIMIT", "60/minute")
 
 setup_logging()
-logger = logging.getLogger("policylens.main")
+logger = logging.getLogger("privacylens.main")
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[RATE_LIMIT])
 
@@ -46,7 +48,7 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[RATE_LIMIT])
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    logger.info("PolicyLens starting | model=%s | log_level=%s", LLM_MODEL, log_level)
+    logger.info("PrivacyLens starting | model=%s | log_level=%s", LLM_MODEL, log_level)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -56,10 +58,10 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    logger.info("PolicyLens shutting down")
+    logger.info("PrivacyLens shutting down")
 
 
-app = FastAPI(title="PolicyLens API", lifespan=lifespan)
+app = FastAPI(title="PrivacyLens API", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 
@@ -269,6 +271,7 @@ async def analyze_services(
                         "icon": svc_icon,
                         "grade": cached.grade,
                         "summary": cached.summary,
+                        "tldr": cached.tldr,
                         "red_flags": json.loads(cached.red_flags),
                         "warnings": json.loads(cached.warnings),
                         "positives": json.loads(cached.positives),
@@ -298,6 +301,7 @@ async def analyze_services(
                     "icon": svc_icon,
                     "grade": "N/A",
                     "summary": "Could not locate a privacy policy for this service.",
+                    "tldr": "",
                     "red_flags": [],
                     "warnings": [],
                     "positives": [],
@@ -320,6 +324,7 @@ async def analyze_services(
                     "icon": svc_icon,
                     "grade": "N/A",
                     "summary": f"LLM API error: {e}",
+                    "tldr": "",
                     "red_flags": [],
                     "warnings": [],
                     "positives": [],
@@ -346,6 +351,7 @@ async def analyze_services(
                 service_id=svc_id,
                 grade=analysis_data["grade"],
                 summary=analysis_data["summary"],
+                tldr=analysis_data.get("tldr", ""),
                 red_flags=json.dumps(analysis_data["red_flags"]),
                 warnings=json.dumps(analysis_data["warnings"]),
                 positives=json.dumps(analysis_data.get("positives", [])),
@@ -365,6 +371,7 @@ async def analyze_services(
                 "icon": svc_icon,
                 "grade": analysis_data["grade"],
                 "summary": analysis_data["summary"],
+                "tldr": analysis_data.get("tldr", ""),
                 "red_flags": analysis_data["red_flags"],
                 "warnings": analysis_data["warnings"],
                 "positives": analysis_data.get("positives", []),
@@ -399,14 +406,6 @@ async def analyze_services(
         "overall_grade": overall,
         "results": list(results),
     }
-
-
-# ── Analyze from raw text ─────────────────────────────────────────────────────
-
-
-class AnalyzeTextRequest(BaseModel):
-    name: str = "Custom Policy"
-    text: str
 
 
 @app.post("/api/analyze-text")
@@ -459,6 +458,54 @@ async def analyze_policy_from_text(req: AnalyzeTextRequest, db: AsyncSession = D
         "alternatives": analysis_data.get("alternatives", []),
         "was_truncated": analysis_data.get("was_truncated", False),
     }
+
+class AnalyzeTextRequest(BaseModel):
+    text: str
+    name: str = "Custom Policy"
+
+    @field_validator("text")
+    @classmethod
+    def text_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v or len(v) < 50:
+            raise ValueError("text must be at least 50 characters")
+        if len(v) > 200_000:
+            raise ValueError("text must not exceed 200,000 characters")
+        return v
+
+    @field_validator("name")
+    @classmethod
+    def name_strip(cls, v: str) -> str:
+        return v.strip() or "Custom Policy"
+
+
+@app.post("/api/analyze-text")
+@limiter.limit(RATE_LIMIT)
+async def analyze_text(req: AnalyzeTextRequest, request: Request):
+    """Analyze pasted policy text directly — no URL fetching, no caching."""
+    try:
+        data = await analyze_policy_text(req.text, service_name=req.name)
+    except Exception as e:
+        logger.error("Raw text analysis error: %s", e)
+        raise HTTPException(status_code=500, detail="Analysis failed. Please try again later.")
+
+    result = {
+        "service_id": None,
+        "name": req.name,
+        "icon": None,
+        "grade": data["grade"],
+        "summary": data["summary"],
+        "tldr": data.get("tldr", ""),
+        "red_flags": data["red_flags"],
+        "warnings": data["warnings"],
+        "positives": data.get("positives", []),
+        "categories": data.get("categories", {}),
+        "highlights": data.get("highlights", []),
+        "actions": [],
+        "cached": False,
+        "mock": data.get("mock", False),
+    }
+    return {"overall_grade": data["grade"], "results": [result]}
 
 
 # ── Chat ─────────────────────────────────────────────────────────────────────
@@ -646,4 +693,78 @@ async def get_policy_text(
         "positives": json.loads(analysis.positives),
         "grade": analysis.grade,
         "service_name": service.name,
+    }
+
+
+# ── Shared Reports ────────────────────────────────────────────────────────────
+
+
+VALID_GRADES = {"A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D+", "D", "D-", "F", "N/A"}
+
+
+class ReportResultItem(BaseModel):
+    service_id: int | None = None
+    name: str = Field(max_length=200)
+    grade: str
+    icon: str | None = None
+    summary: str | None = None
+    red_flags: list = Field(default_factory=list)
+    warnings: list = Field(default_factory=list)
+    positives: list = Field(default_factory=list)
+    categories: dict = Field(default_factory=dict)
+    highlights: list = Field(default_factory=list)
+    actions: list = Field(default_factory=list)
+    cached: bool | None = None
+    mock: bool | None = None
+
+
+class CreateReportRequest(BaseModel):
+    overall_grade: str = Field(max_length=3)
+    results: list[ReportResultItem] = Field(max_length=50)
+
+    @field_validator("overall_grade")
+    @classmethod
+    def validate_grade(cls, v: str) -> str:
+        if v not in VALID_GRADES:
+            raise ValueError(f"Invalid grade: {v}")
+        return v
+
+
+REPORT_ID_PATTERN = r"^[a-f0-9]{12}$"
+
+
+@app.post("/api/reports", status_code=201)
+async def create_report(req: CreateReportRequest, db: AsyncSession = Depends(get_db)):
+    for _ in range(5):
+        report_id = uuid4().hex[:12]
+        existing = await db.execute(select(SharedReport).where(SharedReport.id == report_id))
+        if existing.scalar_one_or_none() is None:
+            break
+    else:
+        raise HTTPException(status_code=500, detail="Failed to generate unique report ID")
+
+    report = SharedReport(
+        id=report_id,
+        overall_grade=req.overall_grade,
+        results_json=json.dumps([r.model_dump(exclude_none=True) for r in req.results]),
+    )
+    db.add(report)
+    await db.commit()
+    return {"id": report_id}
+
+
+@app.get("/api/reports/{report_id}")
+async def get_report(
+    report_id: str = Path(pattern=REPORT_ID_PATTERN),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(SharedReport).where(SharedReport.id == report_id))
+    report = result.scalar_one_or_none()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return {
+        "id": report.id,
+        "overall_grade": report.overall_grade,
+        "results": json.loads(report.results_json),
+        "created_at": report.created_at.isoformat(),
     }

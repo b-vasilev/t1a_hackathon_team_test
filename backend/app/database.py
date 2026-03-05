@@ -4,9 +4,9 @@ import os
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
-logger = logging.getLogger("policylens.database")
+logger = logging.getLogger("privacylens.database")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./policylens.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./privacylens.db")
 
 # SQLAlchemy uses sqlite:// but aiosqlite needs sqlite+aiosqlite://
 if DATABASE_URL.startswith("sqlite:///"):

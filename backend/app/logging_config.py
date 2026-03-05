@@ -14,7 +14,7 @@ def setup_logging() -> None:
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
 
-    root_logger = logging.getLogger("policylens")
+    root_logger = logging.getLogger("privacylens")
     root_logger.setLevel(getattr(logging, level, logging.INFO))
     root_logger.addHandler(handler)
     root_logger.propagate = False

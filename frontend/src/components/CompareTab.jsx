@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import ServiceGrid from '@/components/ServiceGrid';
 import AddService from '@/components/AddService';
 import CompareResults from '@/components/CompareResults';
 import ServiceIcon from '@/components/ServiceIcon';
 
 const SS_KEYS = {
-  selectedIds: 'pl_cmp_selectedIds',
   order: 'pl_cmp_order',
   custom: 'pl_cmp_custom',
   results: 'pl_cmp_results',
@@ -28,7 +27,7 @@ function saveToSession(key, value) {
   sessionStorage.setItem(key, JSON.stringify(value));
 }
 
-export default function CompareTab({ services = [], parentHydrated: _parentHydrated = false, preloadService = null, onPreloadConsumed }) {
+export default function CompareTab({ services = [] }) {
   const [selectionOrder, setSelectionOrder] = useState([]);
   const [customServices, setCustomServices] = useState([]);
   const [results, setResults] = useState(null);
@@ -36,7 +35,7 @@ export default function CompareTab({ services = [], parentHydrated: _parentHydra
   const [error, setError] = useState('');
   const [hydrated, setHydrated] = useState(false);
 
-  const selectedIds = new Set(selectionOrder);
+  const selectedIds = useMemo(() => new Set(selectionOrder), [selectionOrder]);
 
   // Hydrate from sessionStorage after mount
   useEffect(() => {
@@ -61,7 +60,6 @@ export default function CompareTab({ services = [], parentHydrated: _parentHydra
   // Persist order
   useEffect(() => {
     if (!hydrated) { return; }
-    saveToSession(SS_KEYS.selectedIds, selectionOrder);
     saveToSession(SS_KEYS.order, selectionOrder);
   }, [selectionOrder, hydrated]);
 
@@ -118,8 +116,12 @@ export default function CompareTab({ services = [], parentHydrated: _parentHydra
         body: JSON.stringify({ service_ids: selectionOrder }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Analysis failed');
+        let detail = `Analysis failed (HTTP ${res.status})`;
+        try {
+          const err = await res.json();
+          if (err.detail) { detail = err.detail; }
+        } catch {}
+        throw new Error(detail);
       }
       const data = await res.json();
       setResults(data.results);
@@ -153,37 +155,44 @@ export default function CompareTab({ services = [], parentHydrated: _parentHydra
     <div className="flex flex-col gap-8">
       {/* Slot cards */}
       <div className="flex items-center gap-4 justify-center">
-        {[
-          { slot: slotA, label: 'A', color: 'var(--pl-accent)', slotBg: 'rgba(0,229,255,0.08)', slotBorder: 'var(--pl-accent)', idx: 0 },
-          { slot: slotB, label: 'B', color: '#f97316', slotBg: 'rgba(249,115,22,0.08)', slotBorder: '#f97316', idx: 1 },
-        ].map(({ slot, label, color, slotBg, slotBorder, idx }) => (
-          <div
-            key={label}
-            className="flex-1 max-w-48 rounded-xl px-4 py-3 flex flex-col items-center gap-2 text-center"
-            style={{
-              background: slot ? slotBg : 'var(--pl-surface)',
-              border: slot ? `2px solid ${slotBorder}` : '1px dashed var(--pl-border)',
-              minHeight: '80px',
-              justifyContent: 'center',
-              cursor: slot ? 'pointer' : 'default',
-              transition: 'all 0.2s',
-            }}
-            onClick={() => slot && toggleService(selectionOrder[idx])}
-            role={slot ? 'button' : undefined}
-            title={slot ? `Remove ${slot.name} from slot ${label}` : undefined}
-          >
-            <span className="text-xs font-bold" style={{ color, fontFamily: 'var(--font-mono)' }}>{label}</span>
-            {slot ? (
-              <>
-                <ServiceIcon icon={slot.icon} name={slot.name} size="sm" />
-                <span className="text-xs font-medium" style={{ color: 'var(--pl-text)' }}>{slot.name}</span>
-                <span className="text-xs" style={{ color: 'var(--pl-text-dim)' }}>click to remove</span>
-              </>
-            ) : (
-              <span className="text-xs" style={{ color: 'var(--pl-text-dim)' }}>Select a service</span>
-            )}
-          </div>
-        ))}
+        {/* Slot A */}
+        {(() => {
+          const slot = slotA;
+          const label = 'A';
+          const color = 'var(--pl-accent)';
+          const slotBg = 'rgba(0,229,255,0.08)';
+          const slotBorder = 'var(--pl-accent)';
+          const idx = 0;
+          return (
+            <div
+              className="flex-1 max-w-48 rounded-xl px-4 py-3 flex flex-col items-center gap-2 text-center"
+              style={{
+                background: slot ? slotBg : 'var(--pl-surface)',
+                border: slot ? `2px solid ${slotBorder}` : '1px dashed var(--pl-border)',
+                minHeight: '80px',
+                justifyContent: 'center',
+                cursor: slot ? 'pointer' : 'default',
+                transition: 'all 0.2s',
+              }}
+              onClick={() => slot && toggleService(selectionOrder[idx])}
+              role={slot ? 'button' : undefined}
+              title={slot ? `Remove ${slot.name} from slot ${label}` : undefined}
+            >
+              <span className="text-xs font-bold" style={{ color, fontFamily: 'var(--font-mono)' }}>{label}</span>
+              {slot ? (
+                <>
+                  <ServiceIcon icon={slot.icon} name={slot.name} size="sm" />
+                  <span className="text-xs font-medium" style={{ color: 'var(--pl-text)' }}>{slot.name}</span>
+                  <span className="text-xs" style={{ color: 'var(--pl-text-dim)' }}>click to remove</span>
+                </>
+              ) : (
+                <span className="text-xs" style={{ color: 'var(--pl-text-dim)' }}>Select a service</span>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* VS label */}
         <div className="flex flex-col items-center justify-center px-2">
           <span
             className="text-lg font-bold"
@@ -192,6 +201,43 @@ export default function CompareTab({ services = [], parentHydrated: _parentHydra
             vs
           </span>
         </div>
+
+        {/* Slot B */}
+        {(() => {
+          const slot = slotB;
+          const label = 'B';
+          const color = '#f97316';
+          const slotBg = 'rgba(249,115,22,0.08)';
+          const slotBorder = '#f97316';
+          const idx = 1;
+          return (
+            <div
+              className="flex-1 max-w-48 rounded-xl px-4 py-3 flex flex-col items-center gap-2 text-center"
+              style={{
+                background: slot ? slotBg : 'var(--pl-surface)',
+                border: slot ? `2px solid ${slotBorder}` : '1px dashed var(--pl-border)',
+                minHeight: '80px',
+                justifyContent: 'center',
+                cursor: slot ? 'pointer' : 'default',
+                transition: 'all 0.2s',
+              }}
+              onClick={() => slot && toggleService(selectionOrder[idx])}
+              role={slot ? 'button' : undefined}
+              title={slot ? `Remove ${slot.name} from slot ${label}` : undefined}
+            >
+              <span className="text-xs font-bold" style={{ color, fontFamily: 'var(--font-mono)' }}>{label}</span>
+              {slot ? (
+                <>
+                  <ServiceIcon icon={slot.icon} name={slot.name} size="sm" />
+                  <span className="text-xs font-medium" style={{ color: 'var(--pl-text)' }}>{slot.name}</span>
+                  <span className="text-xs" style={{ color: 'var(--pl-text-dim)' }}>click to remove</span>
+                </>
+              ) : (
+                <span className="text-xs" style={{ color: 'var(--pl-text-dim)' }}>Select a service</span>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Service selection */}

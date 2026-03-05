@@ -135,14 +135,14 @@ describe("Home page", () => {
     });
   });
 
-  it("renders header with PolicyLens title", async () => {
+  it("renders header with PrivacyLens title", async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve([]),
     });
 
     render(<Home />);
-    expect(screen.getByText("PolicyLens")).toBeInTheDocument();
+    expect(screen.getByText("PrivacyLens")).toBeInTheDocument();
   });
 
   it("renders the three steps", async () => {

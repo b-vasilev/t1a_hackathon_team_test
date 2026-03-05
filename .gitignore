@@ -11,6 +11,6 @@ __pycache__/
 .ruff_cache/
 .coverage
 coverage/
-policylens.db
+privacylens.db
 /tmp
 /data/

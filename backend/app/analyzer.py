@@ -29,7 +29,7 @@ LLM_MODEL = os.getenv("LLM_MODEL", "anthropic/claude-haiku-4-5-20251001")
 LLM_API_KEY = os.getenv("LLM_API_KEY")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 
-logger = logging.getLogger("policylens.analyzer")
+logger = logging.getLogger("privacylens.analyzer")
 
 
 class LLMUnavailableError(Exception):
@@ -527,19 +527,45 @@ async def _llm_chat_call(system: str, messages: list[dict], max_tokens: int = 51
         kwargs["api_key"] = LLM_API_KEY
     if LLM_BASE_URL:
         kwargs["api_base"] = LLM_BASE_URL
-    try:
-        response = await litellm.acompletion(**kwargs)
-    except Exception as e:
-        logger.error("LLM API unreachable (chat): %s: %s", type(e).__name__, e)
-        raise LLMUnavailableError(str(e)) from e
-    usage = response.usage
-    logger.info(
-        "LLM chat call completed | tokens: prompt=%d completion=%d total=%d",
-        usage.prompt_tokens,
-        usage.completion_tokens,
-        usage.total_tokens,
-    )
-    return response.choices[0].message.content.strip()
+
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_RETRIES):
+        try:
+            response = await litellm.acompletion(**kwargs)
+            usage = response.usage
+            logger.info(
+                "LLM chat call completed | attempt=%d | tokens: prompt=%d completion=%d total=%d",
+                attempt + 1,
+                usage.prompt_tokens,
+                usage.completion_tokens,
+                usage.total_tokens,
+            )
+            return response.choices[0].message.content.strip()
+        except _TRANSIENT_ERRORS as e:
+            last_exc = e
+            if attempt < _MAX_RETRIES - 1:
+                delay = _RETRY_DELAYS[attempt]
+                logger.warning(
+                    "LLM chat transient error (attempt %d/%d), retrying in %ds: %s: %s",
+                    attempt + 1,
+                    _MAX_RETRIES,
+                    delay,
+                    type(e).__name__,
+                    e,
+                )
+                await asyncio.sleep(delay)
+            else:
+                logger.error(
+                    "LLM API unreachable (chat) after %d attempts: %s: %s",
+                    _MAX_RETRIES,
+                    type(e).__name__,
+                    e,
+                )
+        except Exception as e:
+            logger.error("LLM API error (chat, non-retryable): %s: %s", type(e).__name__, e)
+            raise LLMUnavailableError(str(e)) from e
+
+    raise LLMUnavailableError(str(last_exc)) from last_exc
 
 
 def _format_analysis_context(analysis_context: dict) -> str:
@@ -603,6 +629,7 @@ def _empty_result(summary: str) -> dict:
     return {
         "grade": "N/A",
         "summary": summary,
+        "tldr": summary,
         "red_flags": [],
         "warnings": [],
         "positives": [],
@@ -661,10 +688,14 @@ def _normalize(data: dict) -> dict:
                     "description": str(alt.get("description", ""))[:100],
                     "url": url if url.startswith("http") else "",
                 })
+    tldr = data.get("tldr", "")
+    if not tldr:
+        tldr = highlights[0] if highlights else "Analysis complete."
 
     return {
         "grade": overall_grade,
         "summary": highlights[0] if highlights else "Analysis complete.",
+        "tldr": tldr,
         "red_flags": red_flags[:3],
         "warnings": warnings[:3],
         "positives": positives[:3],
@@ -750,11 +781,20 @@ async def analyze_policy(privacy_policy_url: str, service_name: str = "") -> dic
     return result
 
 
+
 async def analyze_text(policy_text: str, service_name: str = "") -> dict:
     """Analyze a privacy policy from provided text, skipping the fetch step."""
     logger.info("Analyzing provided text for '%s' (%d chars)", service_name, len(policy_text))
     was_truncated = len(policy_text) > 80000
     policy_text = policy_text[:80000]
+
+async def analyze_policy_text(text: str, service_name: str = "") -> dict:
+    """Analyze a raw privacy policy text — no URL fetching."""
+    logger.info("Analyzing raw policy text (%d chars) for '%s'", len(text), service_name or "<unnamed>")
+
+    if not text or len(text.strip()) < 50:
+        return _empty_result("Policy text is too short to analyze.")
+
 
     try:
         raw = await _llm_call(
@@ -765,6 +805,9 @@ async def analyze_text(policy_text: str, service_name: str = "") -> dict:
     except LLMUnavailableError:
         logger.warning("LLM unavailable, returning mock analysis for '%s'", service_name)
         return get_mock_analysis(service_name)
+            user=ANALYSIS_USER_PROMPT.format(policy_text=text[:60000]),
+            max_tokens=2048,
+        )
 
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw)
@@ -782,9 +825,9 @@ async def analyze_text(policy_text: str, service_name: str = "") -> dict:
             return _empty_result("Analysis failed — could not parse response.")
 
     result = _normalize(data)
-    result["policy_text"] = policy_text
-    result["was_truncated"] = was_truncated
-    logger.info("Text analysis complete for '%s' → grade=%s", service_name, result["grade"])
+    result["policy_text"] = text
+    result["was_truncated"] = len(text) > 60000
+    logger.info("Raw text analysis complete for '%s' → grade=%s", service_name, result["grade"])
     return result
 
 

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -45,6 +45,7 @@ class PolicyAnalysis(Base):
     service_id: Mapped[int] = mapped_column(Integer, ForeignKey("services.id"), nullable=False)
     grade: Mapped[str] = mapped_column(String, nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
+    tldr: Mapped[str] = mapped_column(Text, nullable=False, default="")
     red_flags: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
     warnings: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON
     categories: Mapped[str] = mapped_column(Text, default="{}")  # JSON
@@ -60,3 +61,14 @@ class PolicyAnalysis(Base):
 
     service: Mapped["Service"] = relationship("Service", back_populates="analyses")
     policy_text_rel: Mapped["PolicyText | None"] = relationship("PolicyText", back_populates="analyses")
+
+
+class SharedReport(Base):
+    __tablename__ = "shared_reports"
+
+    id: Mapped[str] = mapped_column(String(12), primary_key=True)
+    overall_grade: Mapped[str] = mapped_column(String(8), nullable=False)
+    results_json: Mapped[str] = mapped_column(Text, nullable=False)  # JSON array
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), server_default=func.now()
+    )

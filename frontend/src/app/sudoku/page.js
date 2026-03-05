@@ -59,7 +59,7 @@ export default function SudokuPage() {
             marginBottom: '6px',
           }}
         >
-          PolicyLens Sudoku
+          PrivacyLens Sudoku
         </h1>
         <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}>
           {scanDone

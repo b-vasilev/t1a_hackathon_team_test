@@ -102,7 +102,7 @@ describe('CompareTab', () => {
   });
 
   it('calls /api/analyze and renders CompareResults on success', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: true,
       json: () => Promise.resolve(mockResults),
     });
@@ -127,7 +127,7 @@ describe('CompareTab', () => {
   });
 
   it('shows error message when API call fails', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    vi.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: false,
       json: () => Promise.resolve({ detail: 'Analysis failed' }),
     });
