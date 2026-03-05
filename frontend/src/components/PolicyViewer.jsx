@@ -54,7 +54,7 @@ function capToWordBoundary(text, start, end) {
 function quoteToRegex(quote) {
   // Split into word-like tokens, stripping surrounding punctuation
   const tokens = normalizeWhitespace(quote).split(/\s+/).map(w => w.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '')).filter(Boolean);
-  const pattern = tokens.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s,;:.!?\'"]{0,5}\\s?');
+  const pattern = tokens.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s,;:.!?\'"()\\[\\]/]{0,5}\\s?');
   return new RegExp(pattern, 'i');
 }
 
@@ -504,7 +504,7 @@ export default function PolicyViewer({ serviceId, serviceName, grade, onClose })
                   <span style={{ color: 'var(--pl-text-muted)', fontFamily: 'var(--font-mono)' }}>
                     {unmatched > 0
                       ? <span title={`${unmatched} not highlighted — quote not found in text`}>
-                          ({matched}/{items.length})
+                          ({matched}/{items.length} highlighted)
                         </span>
                       : `(${items.length})`
                     }
