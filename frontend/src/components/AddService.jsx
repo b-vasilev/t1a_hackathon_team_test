@@ -40,7 +40,7 @@ export default function AddService({ onAdd }) {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-          placeholder="https://example.com"
+          placeholder="https://example.com/privacy"
           className="flex-1 rounded-lg px-4 py-2.5 text-sm transition-colors"
           style={{
             background: 'var(--pl-surface)',

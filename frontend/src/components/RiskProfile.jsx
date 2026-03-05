@@ -174,7 +174,7 @@ function ServiceCard({ result, onRescan, isLoading }) {
               </button>
             )}
           </div>
-          <p className="text-sm mt-1" style={{ color: 'var(--pl-text-muted)' }}>{result.summary}</p>
+          <p className="text-sm mt-1" style={{ color: 'var(--pl-text-muted)' }}>{result.tldr || result.summary}</p>
         </div>
       </div>
 
@@ -462,8 +462,115 @@ function ServiceCard({ result, onRescan, isLoading }) {
   );
 }
 
+function ShareModal({ url, onClose }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      // Fallback: select the input text for manual copy
+    });
+  };
+
+  return (
+    <div
+      data-testid="share-modal-overlay"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 50,
+        background: 'rgba(0,0,0,0.6)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1rem',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="rounded-2xl p-6 flex flex-col gap-4"
+        style={{
+          background: 'var(--pl-surface)',
+          border: '1px solid var(--pl-border)',
+          width: '100%',
+          maxWidth: '480px',
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-base" style={{ color: 'var(--pl-text)', fontFamily: 'var(--font-heading)' }}>
+            Share Report
+          </h3>
+          <button
+            onClick={onClose}
+            title="Close"
+            aria-label="Close share modal"
+            className="p-1 rounded-md cursor-pointer"
+            style={{ color: 'var(--pl-text-muted)' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <p className="text-sm" style={{ color: 'var(--pl-text-muted)' }}>
+          Anyone with this link can view a read-only snapshot of these results.
+        </p>
+        <div className="flex gap-2">
+          <input
+            readOnly
+            value={url}
+            data-testid="share-url-input"
+            onFocus={(e) => e.target.select()}
+            className="flex-1 rounded-lg px-3 py-2 text-sm"
+            style={{
+              background: 'var(--pl-bg)',
+              border: '1px solid var(--pl-border)',
+              color: 'var(--pl-text)',
+              fontFamily: 'var(--font-mono)',
+              outline: 'none',
+            }}
+          />
+          <button
+            onClick={handleCopy}
+            data-testid="copy-button"
+            className="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors"
+            style={{
+              background: copied ? 'rgba(0,230,118,0.15)' : 'var(--pl-accent)',
+              color: copied ? 'var(--pl-grade-a)' : 'var(--pl-bg)',
+              border: copied ? '1px solid rgba(0,230,118,0.3)' : 'none',
+              fontFamily: 'var(--font-mono)',
+            }}
+          >
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function computeOverallTldr(results) {
+  const total = results.length;
+  const poor = results.filter((r) => r.grade && (r.grade[0] === 'D' || r.grade[0] === 'F')).length;
+  const good = results.filter((r) => r.grade && (r.grade[0] === 'A' || r.grade[0] === 'B')).length;
+
+  if (poor > total / 2) {
+    return `${poor} of ${total} services pose significant privacy risks \u2014 review your data exposure`;
+  }
+  if (good === total) {
+    return `All ${total} services maintain strong privacy practices \u2014 nice choices`;
+  }
+  const needAttention = total - good;
+  return `Mixed results across ${total} services \u2014 ${needAttention} need attention`;
+}
+
 export default function RiskProfile({ overallGrade, results, onRescanService, onClearCache, isLoading }) {
   const [generatingCombined, setGeneratingCombined] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState(null);
 
   if (!results || results.length === 0) { return null; }
 
@@ -477,6 +584,28 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
       alert('Failed to generate combined PDF report. Please try again.');
     } finally {
       setGeneratingCombined(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (shareUrl) { return; }
+    setSharing(true);
+    try {
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ overall_grade: overallGrade, results }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setShareUrl(`${window.location.origin}/report/${data.id}`);
+      } else {
+        alert('Failed to create shareable link. Please try again.');
+      }
+    } catch {
+      alert('Network error. Please check your connection and try again.');
+    } finally {
+      setSharing(false);
     }
   };
 
@@ -525,6 +654,16 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
           <p className="text-sm mt-1" style={{ color: 'var(--pl-text-muted)' }}>
             Based on {results.length} service{results.length !== 1 ? 's' : ''} analyzed
           </p>
+          <p
+            className="text-sm mt-2"
+            style={{
+              color: 'var(--pl-accent)',
+              fontStyle: 'italic',
+              fontFamily: 'var(--font-mono)',
+            }}
+          >
+            &gt; {computeOverallTldr(results)}
+          </p>
           <div className="flex gap-4 mt-3 text-sm" style={{ fontFamily: 'var(--font-mono)' }}>
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: 'var(--pl-grade-f)' }} />
@@ -539,7 +678,7 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
               <span style={{ color: 'var(--pl-text-muted)' }}>{totalClean} positive{totalClean !== 1 ? 's' : ''}</span>
             </span>
           </div>
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 flex-wrap mt-3">
             <button
               onClick={handleDownloadCombinedPdf}
               disabled={generatingCombined || isLoading}
@@ -570,6 +709,28 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
               )}
               {generatingCombined ? 'Generating...' : 'Download PDF'}
             </button>
+            <button
+              onClick={handleShare}
+              disabled={sharing}
+              data-testid="share-button"
+              title="Share this report"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              style={{
+                fontFamily: 'var(--font-mono)',
+                color: 'var(--pl-accent)',
+                background: 'rgba(0, 229, 255, 0.08)',
+                border: '1px solid rgba(0, 229, 255, 0.2)',
+                opacity: sharing ? 0.6 : 1,
+              }}
+              onMouseEnter={(e) => { if (!sharing) { e.currentTarget.style.background = 'rgba(0, 229, 255, 0.15)'; } }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0, 229, 255, 0.08)'; }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              {sharing ? 'Sharing\u2026' : 'Share'}
+            </button>
             {onClearCache && (
               <button
                 onClick={onClearCache}
@@ -598,6 +759,8 @@ export default function RiskProfile({ overallGrade, results, onRescanService, on
           <ServiceCard key={r.service_id} result={r} onRescan={onRescanService} isLoading={isLoading} />
         ))}
       </div>
+
+      {shareUrl && <ShareModal url={shareUrl} onClose={() => setShareUrl(null)} />}
     </div>
   );
 }

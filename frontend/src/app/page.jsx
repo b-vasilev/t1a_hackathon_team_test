@@ -581,7 +581,7 @@ export default function Home() {
               Add a Custom Service
             </h2>
             <p style={{ color: 'var(--pl-text-dim)', fontSize: '0.875rem' }}>
-              Enter any website URL — we&apos;ll find its privacy policy automatically.
+              Paste a link to any privacy policy — we&apos;ll analyze it for you.
             </p>
             <AddService onAdd={handleAddCustom} />
           </section>

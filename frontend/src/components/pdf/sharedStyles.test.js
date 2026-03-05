@@ -28,8 +28,8 @@ import {
 
 describe('sharedStyles color constants', () => {
   it('exports all color constants', () => {
-    expect(DARK_BG).toBe('#0a0a0f');
-    expect(SURFACE).toBe('#12121a');
+    expect(DARK_BG).toBe('#1c1c1c');
+    expect(SURFACE).toBe('#262626');
     expect(BORDER).toBe('rgba(102, 102, 128, 0.2)');
     expect(ACCENT).toBe('#22d3ee');
     expect(TEXT_WHITE).toBe('#e4e4e7');

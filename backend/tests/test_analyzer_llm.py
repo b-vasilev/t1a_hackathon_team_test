@@ -46,6 +46,7 @@ class TestAnalyzePolicy:
         mock_fetch.return_value = ("Privacy policy text...", False)
         mock_llm.return_value = json.dumps(
             {
+                "tldr": "Collects email, shares with partners, uses cookies.",
                 "categories": {
                     "data_collection": {"grade": "B", "finding": "Collects email"},
                     "data_sharing": {"grade": "B", "finding": "Shares with partners"},
@@ -61,6 +62,7 @@ class TestAnalyzePolicy:
         )
         result = await analyze_policy("https://example.com/privacy")
         assert result["grade"] == "B"
+        assert result["tldr"] == "Collects email, shares with partners, uses cookies."
         assert len(result["red_flags"]) == 1
         assert len(result["positives"]) == 1
 
@@ -70,6 +72,7 @@ class TestAnalyzePolicy:
         mock_fetch.return_value = ("Policy text", False)
         raw_json = json.dumps(
             {
+                "tldr": "Great privacy policy with full transparency.",
                 "categories": {
                     "data_collection": {"grade": "A", "finding": "x"},
                     "data_sharing": {"grade": "A", "finding": "x"},
@@ -86,6 +89,7 @@ class TestAnalyzePolicy:
         mock_llm.return_value = f"```json\n{raw_json}\n```"
         result = await analyze_policy("https://example.com/privacy")
         assert result["grade"] == "A"
+        assert result["tldr"] == "Great privacy policy with full transparency."
 
     @patch("app.analyzer._llm_call", new_callable=AsyncMock)
     @patch("app.analyzer.fetch_text", new_callable=AsyncMock)
@@ -228,6 +232,7 @@ class TestGetServiceActions:
 
 SAMPLE_LLM_RESPONSE = json.dumps(
     {
+        "tldr": "Decent policy but shares data and uses cookies.",
         "categories": {
             "data_collection": {"grade": "B", "finding": "Collects email"},
             "data_sharing": {"grade": "B", "finding": "Shares with partners"},
@@ -252,6 +257,7 @@ class TestAnalyzePolicyText:
         mock_llm.return_value = SAMPLE_LLM_RESPONSE
         result = await analyze_policy_text(LONG_TEXT, service_name="TestService")
         assert result["grade"] != "N/A"
+        assert result["tldr"] == "Decent policy but shares data and uses cookies."
         assert len(result["red_flags"]) == 1
         assert len(result["positives"]) == 1
 
