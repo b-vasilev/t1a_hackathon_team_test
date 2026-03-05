@@ -10,7 +10,6 @@ on:
       - 'LICENSE'
       - '.gitignore'
       - '.env.example'
-      - '.github/**'
   workflow_dispatch:
     inputs:
       reset_db:
