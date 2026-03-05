@@ -230,9 +230,14 @@ export default function Home() {
 
   const clearCache = useCallback(async () => {
     try {
-      await fetch('/api/cache', { method: 'DELETE' });
+      const res = await fetch('/api/cache', { method: 'DELETE' });
+      if (!res.ok) {
+        throw new Error('Failed to clear cache');
+      }
       setResults([]);
       setOverallGrade(null);
+      saveToSession(SS_KEYS.results, []);
+      saveToSession(SS_KEYS.overallGrade, null);
     } catch (e) {
       setError(e.message);
     }

@@ -452,12 +452,13 @@ _TRANSIENT_ERRORS = (
     litellm.ServiceUnavailableError,
     litellm.RateLimitError,
     litellm.Timeout,
+    asyncio.TimeoutError,
 )
 _MAX_RETRIES = 3
 _RETRY_DELAYS = [2, 4, 8]  # seconds
 
 
-async def _llm_call(system: str, user: str, max_tokens: int = 1024) -> str:
+async def _llm_call(system: str, user: str, max_tokens: int = 1024, timeout: int = 120) -> str:
     logger.info("LLM call starting | model=%s | max_tokens=%d", LLM_MODEL, max_tokens)
     kwargs = dict(
         model=LLM_MODEL,
@@ -476,7 +477,7 @@ async def _llm_call(system: str, user: str, max_tokens: int = 1024) -> str:
     last_exc: Exception | None = None
     for attempt in range(_MAX_RETRIES):
         try:
-            response = await litellm.acompletion(**kwargs)
+            response = await asyncio.wait_for(litellm.acompletion(**kwargs), timeout=timeout)
             usage = response.usage
             logger.info(
                 "LLM call completed | attempt=%d | tokens: prompt=%d completion=%d total=%d",
@@ -683,11 +684,13 @@ def _normalize(data: dict) -> dict:
         for alt in raw_alts[:3]:
             if isinstance(alt, dict) and alt.get("name"):
                 url = str(alt.get("url", ""))
-                alternatives.append({
-                    "name": str(alt["name"])[:60],
-                    "description": str(alt.get("description", ""))[:100],
-                    "url": url if url.startswith("http") else "",
-                })
+                alternatives.append(
+                    {
+                        "name": str(alt["name"])[:60],
+                        "description": str(alt.get("description", ""))[:100],
+                        "url": url if url.startswith("http") else "",
+                    }
+                )
     tldr = data.get("tldr", "")
     if not tldr:
         tldr = highlights[0] if highlights else "Analysis complete."
@@ -742,7 +745,7 @@ async def find_privacy_policy_url(website_url: str) -> str | None:
 async def analyze_policy(privacy_policy_url: str, service_name: str = "") -> dict:
     logger.info("Analyzing policy: %s", privacy_policy_url)
     try:
-        policy_text, was_truncated = await fetch_text(privacy_policy_url, max_chars=80000, structured=True)
+        policy_text, was_truncated = await fetch_text(privacy_policy_url, max_chars=150000, structured=True)
     except Exception as e:
         logger.error("Failed to fetch policy %s: %s", privacy_policy_url, e)
         return _empty_result(f"Could not fetch privacy policy: {e}")
@@ -750,8 +753,8 @@ async def analyze_policy(privacy_policy_url: str, service_name: str = "") -> dic
     try:
         raw = await _llm_call(
             system=GRADING_RUBRIC,
-            user=ANALYSIS_USER_PROMPT.format(policy_text=policy_text[:60000]),
-            max_tokens=2048,
+            user=ANALYSIS_USER_PROMPT.format(policy_text=policy_text[:120000]),
+            max_tokens=4096,
         )
     except LLMUnavailableError:
         logger.warning("LLM unavailable, returning mock analysis for %s", service_name)
@@ -781,7 +784,6 @@ async def analyze_policy(privacy_policy_url: str, service_name: str = "") -> dic
     return result
 
 
-
 async def analyze_policy_text(text: str, service_name: str = "") -> dict:
     """Analyze a raw privacy policy text — no URL fetching."""
     logger.info("Analyzing raw policy text (%d chars) for '%s'", len(text), service_name or "<unnamed>")
@@ -792,14 +794,14 @@ async def analyze_policy_text(text: str, service_name: str = "") -> dict:
     try:
         raw = await _llm_call(
             system=GRADING_RUBRIC,
-            user=ANALYSIS_USER_PROMPT.format(policy_text=text[:60000]),
-            max_tokens=2048,
+            user=ANALYSIS_USER_PROMPT.format(policy_text=text[:120000]),
+            max_tokens=4096,
         )
     except LLMUnavailableError:
         logger.warning("LLM unavailable, returning mock analysis for '%s'", service_name)
         mock = get_mock_analysis(service_name)
         mock["policy_text"] = text
-        mock["was_truncated"] = len(text) > 60000
+        mock["was_truncated"] = len(text) > 120000
         return mock
 
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
@@ -819,7 +821,7 @@ async def analyze_policy_text(text: str, service_name: str = "") -> dict:
 
     result = _normalize(data)
     result["policy_text"] = text
-    result["was_truncated"] = len(text) > 60000
+    result["was_truncated"] = len(text) > 120000
     logger.info("Raw text analysis complete for '%s' → grade=%s", service_name, result["grade"])
     return result
 

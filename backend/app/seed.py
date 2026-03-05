@@ -207,9 +207,7 @@ async def _patch_policy_urls(db: AsyncSession) -> None:
     """Update privacy_policy_url for existing services when the seed data has changed."""
     updated = 0
     for svc_data in POPULAR_SERVICES:
-        result = await db.execute(
-            select(Service).where(Service.name == svc_data["name"], Service.is_popular.is_(True))
-        )
+        result = await db.execute(select(Service).where(Service.name == svc_data["name"], Service.is_popular.is_(True)))
         svc = result.scalar_one_or_none()
         if svc and svc.privacy_policy_url != svc_data["privacy_policy_url"]:
             logger.info(

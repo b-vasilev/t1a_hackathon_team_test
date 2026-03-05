@@ -15,7 +15,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
-from sqlalchemy import delete, select
+from sqlalchemy import delete, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .analyzer import (
@@ -200,7 +200,20 @@ async def add_custom_service(
 
 @app.delete("/api/services/{service_id}/cache")
 async def clear_service_cache(service_id: int, db: AsyncSession = Depends(get_db)):
+    # Capture policy_text_ids before deleting analyses
+    text_ids_result = await db.execute(
+        select(PolicyAnalysis.policy_text_id).where(PolicyAnalysis.service_id == service_id)
+    )
+    text_ids = [row[0] for row in text_ids_result.all() if row[0] is not None]
     result = await db.execute(delete(PolicyAnalysis).where(PolicyAnalysis.service_id == service_id))
+    # Clean up only the PolicyText rows that were referenced by deleted analyses and are now orphaned
+    if text_ids:
+        await db.execute(
+            delete(PolicyText).where(
+                PolicyText.id.in_(text_ids),
+                ~exists(select(PolicyAnalysis.id).where(PolicyAnalysis.policy_text_id == PolicyText.id)),
+            )
+        )
     await db.commit()
     logger.info("Cleared cache for service %d (%d rows)", service_id, result.rowcount)
     return {"cleared": True}
@@ -209,8 +222,9 @@ async def clear_service_cache(service_id: int, db: AsyncSession = Depends(get_db
 @app.delete("/api/cache")
 async def clear_all_cache(db: AsyncSession = Depends(get_db)):
     result = await db.execute(delete(PolicyAnalysis))
+    pt_result = await db.execute(delete(PolicyText))
     await db.commit()
-    logger.info("Cleared all cache (%d rows)", result.rowcount)
+    logger.info("Cleared all cache (%d analyses, %d policy texts)", result.rowcount, pt_result.rowcount)
     return {"cleared": result.rowcount}
 
 

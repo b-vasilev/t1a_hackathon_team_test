@@ -70,7 +70,12 @@ Rules:
 - tldr: a single punchy sentence (max 120 chars) summarizing the overall privacy risk.
 - Each object MUST have "text" (plain English summary, max 80 chars) \
 and "quote" (exact verbatim excerpt from the policy text).
-- The "quote" MUST be a word-for-word excerpt from the policy. Do NOT paraphrase or modify the quote.
+- CRITICAL: The "quote" MUST be copied character-for-character from the policy text. \
+Do NOT paraphrase, rephrase, summarize, or modify the quote in any way. \
+Do NOT combine text from different paragraphs, sections, or bullet points into one quote. \
+Each quote must come from a single contiguous sentence or passage. Copy-paste only. \
+Never join multiple list items or bullet points into one quote. \
+Each quote must be 80–200 characters: long enough to be unique, short enough to stay focused.
 - alternatives: Always suggest up to 3 specific privacy-friendly alternative services that offer \
 better or comparable privacy. Each must have "name", "description" (max 80 chars), \
 and "url" (the alternative service's homepage URL). Never return an empty array — always include at least 1.

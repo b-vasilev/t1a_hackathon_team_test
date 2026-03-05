@@ -17,38 +17,125 @@ function getItemQuote(item) {
   return '';
 }
 
-function highlightFindings(text, findings) {
+function normalizeWhitespace(s) {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+// Length-preserving: only 1-to-1 char replacements, safe for index mapping
+function normalizeChars(s) {
+  return s
+    .replace(/[\u2018\u2019\u201A\u2039\u203A']/g, "'")
+    .replace(/[\u201C\u201D\u201E\u00AB\u00BB]/g, '"')
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, '-');
+}
+
+// Full normalization: also fixes spacing around punctuation (changes length, NOT safe for index mapping)
+function normalizeForCompare(s) {
+  return normalizeChars(s)
+    .replace(/\s+([,;:.!?])/g, '$1')
+    .replace(/([,;:.!?])\s{2,}/g, '$1 ');
+}
+
+const MAX_HIGHLIGHT_LEN = 200;
+
+function capToWordBoundary(text, start, end) {
+  const capped = Math.min(end, start + MAX_HIGHLIGHT_LEN);
+  if (capped >= end) {
+    return end;
+  }
+  // Walk back to last space to avoid cutting mid-word
+  let pos = capped;
+  while (pos > start + MAX_HIGHLIGHT_LEN - 30 && pos > start && text[pos] !== ' ') {
+    pos--;
+  }
+  return pos > start ? pos : capped;
+}
+
+function quoteToRegex(quote) {
+  // Split into word-like tokens, stripping surrounding punctuation
+  const tokens = normalizeWhitespace(quote).split(/\s+/).map(w => w.replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '')).filter(Boolean);
+  const pattern = tokens.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s,;:.!?\'"]{0,5}\\s?');
+  return new RegExp(pattern, 'i');
+}
+
+function fuzzyMatchQuote(lowerText, _normalizedText, quote, type) {
+  const lowerQuote = normalizeForCompare(quote.toLowerCase());
+
+  // 1. Try regex match on original text (tolerates punctuation spacing differences)
+  const charNormText = normalizeChars(lowerText);
+  const re = quoteToRegex(lowerQuote);
+  const m1 = re.exec(charNormText);
+  if (m1) {
+    const end = capToWordBoundary(lowerText, m1.index, m1.index + m1[0].length);
+    return [{ start: m1.index, end, type }];
+  }
+
+  // 2. Key-phrase fallback: use longest subsequences of significant words
+  const normQuote = normalizeWhitespace(lowerQuote);
+  const words = normQuote.split(/\s+/).filter(w => w.length > 3);
+  if (words.length >= 2) {
+    for (let len = Math.min(words.length, 8); len >= 4; len--) {
+      for (let start = 0; start <= words.length - len; start++) {
+        const pattern = words.slice(start, start + len)
+          .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .join('\\s+');
+        const fallbackRe = new RegExp(pattern, 'i');
+        const m2 = fallbackRe.exec(charNormText);
+        if (m2) {
+          const end = capToWordBoundary(lowerText, m2.index, m2.index + m2[0].length);
+          return [{ start: m2.index, end, type }];
+        }
+      }
+    }
+  }
+
+  return [];
+}
+
+function highlightFindings(text, findings, matchedSet) {
   if (!findings || findings.length === 0) {
     return [{ text, type: null }];
   }
 
   const lowerText = text.toLowerCase();
+  const normalizedText = normalizeWhitespace(lowerText);
   const matches = [];
 
   for (const { items, type } of findings) {
-    for (const item of items) {
+    for (let itemIdx = 0; itemIdx < items.length; itemIdx++) {
+      const key = `${type}:${itemIdx}`;
+      if (matchedSet && matchedSet.has(key)) {
+        continue;
+      }
+      const item = items[itemIdx];
       const quote = getItemQuote(item);
       if (quote) {
-        // Exact quote matching
-        const lowerQuote = quote.toLowerCase();
-        let idx = lowerText.indexOf(lowerQuote);
-        while (idx !== -1) {
-          matches.push({ start: idx, end: idx + lowerQuote.length, type });
-          idx = lowerText.indexOf(lowerQuote, idx + 1);
+        const found = fuzzyMatchQuote(lowerText, normalizedText, quote, type);
+        if (found.length > 0 && matchedSet) {
+          matchedSet.add(key);
         }
+        matches.push(...found);
       } else {
         // Fuzzy fallback for old-format findings (plain strings)
         const itemText = getItemText(item);
         const words = itemText.split(/\s+/).filter(w => w.length > 3);
+        let matched = false;
         for (let len = Math.min(words.length, 5); len >= 2; len--) {
           for (let start = 0; start <= words.length - len; start++) {
             const phrase = words.slice(start, start + len).join(' ').toLowerCase();
-            let idx = lowerText.indexOf(phrase);
-            while (idx !== -1) {
+            const idx = lowerText.indexOf(phrase);
+            if (idx !== -1) {
               matches.push({ start: idx, end: idx + phrase.length, type });
-              idx = lowerText.indexOf(phrase, idx + 1);
+              matched = true;
+              break;
             }
           }
+          if (matched) {
+            break;
+          }
+        }
+        if (matched && matchedSet) {
+          matchedSet.add(key);
         }
       }
     }
@@ -252,20 +339,31 @@ export default function PolicyViewer({ serviceId, serviceName, grade, onClose })
     ];
   }, [data]);
 
-  const renderedContent = useMemo(() => {
+  const { renderedContent, highlightCounts } = useMemo(() => {
     if (!data?.content) {
-      return null;
+      return { renderedContent: null, highlightCounts: {} };
     }
 
     const lines = data.content.split('\n');
     const elements = [];
+    const counts = { red_flag: 0, warning: 0, positive: 0 };
+    const matchedSet = new Set();
     let currentParagraph = [];
+
+    function countSegments(segments) {
+      for (const seg of segments) {
+        if (seg.type) {
+          counts[seg.type]++;
+        }
+      }
+    }
 
     function flushParagraph() {
       if (currentParagraph.length > 0) {
         const text = currentParagraph.join(' ').trim();
         if (text) {
-          const segments = highlightFindings(text, findings);
+          const segments = highlightFindings(text, findings, matchedSet);
+          countSegments(segments);
           elements.push(
             <p key={`p-${elements.length}`} className="policy-text-paragraph">
               {segments.map((seg, i) => (
@@ -300,7 +398,8 @@ export default function PolicyViewer({ serviceId, serviceName, grade, onClose })
       } else if (line.startsWith('- ')) {
         flushParagraph();
         const text = line.slice(2).trim();
-        const segments = highlightFindings(text, findings);
+        const segments = highlightFindings(text, findings, matchedSet);
+        countSegments(segments);
         elements.push(
           <li key={`li-${i}`} className="policy-text-list-item">
             {segments.map((seg, j) => (
@@ -318,7 +417,7 @@ export default function PolicyViewer({ serviceId, serviceName, grade, onClose })
     }
     flushParagraph();
 
-    return elements;
+    return { renderedContent: elements, highlightCounts: counts };
   }, [data, findings]);
 
   const gradeColor = getGradeColor(grade);
@@ -383,25 +482,36 @@ export default function PolicyViewer({ serviceId, serviceName, grade, onClose })
               { type: 'red_flag', items: data.red_flags, label: 'Red flags', cls: 'highlight-red' },
               { type: 'warning', items: data.warnings, label: 'Warnings', cls: 'highlight-yellow' },
               { type: 'positive', items: data.positives, label: 'Positives', cls: 'highlight-green' },
-            ].filter(f => f.items?.length > 0).map(({ type, items, label, cls }) => (
-              <button
-                key={type}
-                onClick={() => handleTypeClick(type)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all cursor-pointer"
-                style={{
-                  color: activeType === type ? 'var(--pl-text)' : 'var(--pl-text-muted)',
-                  background: activeType === type ? 'rgba(255,255,255,0.08)' : 'transparent',
-                  border: activeType === type ? '1px solid var(--pl-border)' : '1px solid transparent',
-                }}
-                title={`Jump through ${label.toLowerCase()}`}
-              >
-                <span className={`w-3 h-3 rounded-sm inline-block ${cls}`} />
-                <span>{label}</span>
-                <span style={{ color: 'var(--pl-text-muted)', fontFamily: 'var(--font-mono)' }}>
-                  ({items.length})
-                </span>
-              </button>
-            ))}
+            ].filter(f => f.items?.length > 0).map(({ type, items, label, cls }) => {
+              const matched = highlightCounts[type] || 0;
+              const unmatched = items.length - matched;
+              return (
+                <button
+                  key={type}
+                  onClick={() => handleTypeClick(type)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all cursor-pointer"
+                  style={{
+                    color: activeType === type ? 'var(--pl-text)' : 'var(--pl-text-muted)',
+                    background: activeType === type ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    border: activeType === type ? '1px solid var(--pl-border)' : '1px solid transparent',
+                  }}
+                  title={unmatched > 0
+                    ? `${matched} of ${items.length} ${label.toLowerCase()} found in text`
+                    : `Jump through ${label.toLowerCase()}`}
+                >
+                  <span className={`w-3 h-3 rounded-sm inline-block ${cls}`} />
+                  <span>{label}</span>
+                  <span style={{ color: 'var(--pl-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    {unmatched > 0
+                      ? <span title={`${unmatched} not highlighted — quote not found in text`}>
+                          ({matched}/{items.length})
+                        </span>
+                      : `(${items.length})`
+                    }
+                  </span>
+                </button>
+              );
+            })}
 
             {activeType && (
               <div className="flex items-center gap-1 ml-2 pl-2" style={{ borderLeft: '1px solid var(--pl-border)' }}>
