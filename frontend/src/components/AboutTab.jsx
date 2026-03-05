@@ -189,7 +189,7 @@ export default function AboutTab() {
           {
             stat: '91%',
             text: 'accept policies without reading',
-            href: 'https://www2.deloitte.com/us/en/pages/about-deloitte/articles/press-releases/deloitte-survey-consumers-value-their-digital-devices.html',
+            href: 'https://www.lawyer-monthly.com/2018/08/do-you-accept-the-terms-conditions-or-do-they-need-to-change/',
             source: 'Deloitte, 2017',
           },
           {

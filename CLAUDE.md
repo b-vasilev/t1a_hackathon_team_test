@@ -56,28 +56,7 @@ FastAPI backend              (Docker, internal port 8000)
 | `/api/services/custom` | POST | Add custom service by URL |
 | `/api/analyze` | POST | Analyze selected services |
 
-## Hackathon Context
-
-T1A First Hackathon — March 4–5, 2026. Projects judged March 6 by 3 human judges + 1 LLM judge.
-
-### Scoring Rubric (0–10 each, max 40 per judge)
-
-1. **Solution Quality** — working solution, robustness, completeness
-2. **Idea / Innovation** — strength/novelty of approach, clarity of concept
-3. **Real-world Usefulness** — how much this helps in the real world or at T1A
-4. **Presentation Quality** — clarity, demo quality, time management, Q&A handling
-
-Tie-breaker order: Real-world Usefulness → Solution Quality → judge vote.
-
-### Maximize Score Rule
-
-**Every implementation decision MUST optimize for the scoring rubric above.** When choosing between approaches, always pick the one that:
-- Makes the solution more **complete and robust** (Solution Quality)
-- Adds **novel or clever** capabilities (Innovation)
-- Delivers **practical, tangible value** (Real-world Usefulness)
-- Will **demo well** in a 10-min live presentation (Presentation Quality)
-
-### Constraints
+## Constraints
 
 - Any languages/frameworks/providers allowed
 - No client data — use public/synthetic data only
