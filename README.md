@@ -185,33 +185,62 @@ cd frontend && npm test
 ```
 ├── backend/
 │   ├── app/
-│   │   ├── main.py          # FastAPI app — all API endpoints
-│   │   ├── analyzer.py      # Policy fetching, LLM analysis, Q&A chat
-│   │   ├── prompts.py       # LLM prompt templates
-│   │   ├── models.py        # SQLAlchemy models (Service, PolicyText, PolicyAnalysis)
-│   │   ├── database.py      # Async SQLite setup
-│   │   ├── seed.py          # 27 pre-seeded popular services
-│   │   └── mock_data.py     # Fallback analyses when LLM unavailable
-│   └── tests/               # 10 test files, ~60 tests
+│   │   ├── main.py            # FastAPI app — all API endpoints
+│   │   ├── analyzer.py        # Policy fetching, LLM analysis, Q&A chat
+│   │   ├── prompts.py         # LLM prompt templates
+│   │   ├── models.py          # SQLAlchemy models (Service, PolicyText, PolicyAnalysis)
+│   │   ├── database.py        # Async SQLite setup
+│   │   ├── seed.py            # 27 pre-seeded popular services
+│   │   ├── mock_data.py       # Fallback analyses when LLM unavailable
+│   │   └── logging_config.py  # Structured logging configuration
+│   └── tests/                 # 10 test files
 ├── frontend/
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── page.jsx     # Main landing page
-│   │   │   ├── layout.jsx   # Global layout + metadata
-│   │   │   └── api/         # Next.js proxy routes → backend
+│   │   │   ├── page.jsx              # Landing page
+│   │   │   ├── layout.jsx            # Global layout + metadata
+│   │   │   ├── app/page.jsx          # Main app page (analysis UI)
+│   │   │   ├── about/page.jsx        # About page
+│   │   │   ├── report/[id]/page.jsx  # Shareable report page
+│   │   │   ├── sudoku/page.js        # Easter egg Sudoku game
+│   │   │   └── api/                   # Next.js proxy routes → backend
+│   │   │       ├── analyze/route.js
+│   │   │       ├── analyze-text/route.js
+│   │   │       ├── cache/route.js
+│   │   │       ├── chat/route.js
+│   │   │       ├── services/route.js
+│   │   │       ├── services/custom/route.js
+│   │   │       ├── services/[id]/cache/route.js
+│   │   │       ├── services/[id]/policy-text/route.js
+│   │   │       ├── reports/route.js
+│   │   │       └── reports/[id]/route.js
 │   │   └── components/
-│   │       ├── ServiceGrid.jsx      # Categorized service selection
-│   │       ├── RiskProfile.jsx      # Analysis results display
-│   │       ├── PolicyChat.jsx       # Q&A chat modal
-│   │       ├── PolicyViewer.jsx     # Full policy text viewer
-│   │       ├── CompareTab.jsx       # Policy comparison selector
-│   │       ├── CompareResults.jsx   # Side-by-side comparison
-│   │       ├── AddService.jsx       # Custom URL input
-│   │       └── pdf/                 # PDF report generation
-│   └── tests/               # 9 test files, ~40 tests
-├── docker-compose.yml        # 2 services, health checks, volume
-├── Justfile                  # Task runner (up, test, lint, fmt, check)
-└── .env.example              # Environment template
+│   │       ├── ServiceGrid.jsx        # Categorized service selection
+│   │       ├── ServiceIcon.jsx        # Service logo/icon display
+│   │       ├── RiskProfile.jsx        # Analysis results display
+│   │       ├── PolicyChat.jsx         # Q&A chat modal
+│   │       ├── PolicyViewer.jsx       # Full policy text viewer
+│   │       ├── CompareTab.jsx         # Policy comparison selector
+│   │       ├── CompareResults.jsx     # Side-by-side comparison
+│   │       ├── AddService.jsx         # Custom URL input
+│   │       ├── CustomPolicyTab.jsx    # Paste-your-own-policy tab
+│   │       ├── ImportTab.jsx          # Import analysis data
+│   │       ├── AboutTab.jsx           # About tab content
+│   │       ├── Sidebar.jsx            # Navigation sidebar
+│   │       ├── SudokuNudge.jsx        # Easter egg nudge
+│   │       ├── SudokuGame.js          # Sudoku game logic
+│   │       └── pdf/                   # PDF report generation
+│   │           ├── PolicyReport.jsx
+│   │           ├── CombinedReport.jsx
+│   │           ├── generateReport.js
+│   │           ├── generateCombinedReport.js
+│   │           ├── sharedStyles.js
+│   │           └── fonts.js
+│   └── src/**/*.test.{jsx,js}  # 20 test files (co-located with source)
+├── data/                      # SQLite database files (volume-mounted)
+├── docker-compose.yml         # 2 services, health checks, volume
+├── Justfile                   # Task runner (up, test, lint, fmt, check)
+└── .env.example               # Environment template
 ```
 
 ---
