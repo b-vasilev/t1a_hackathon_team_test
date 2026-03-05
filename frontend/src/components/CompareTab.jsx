@@ -283,6 +283,7 @@ export default function CompareTab({ services = [], preloadService, onPreloadCon
           services={services}
           selectedIds={selectedIds}
           onToggle={toggleService}
+          onClearAll={() => setSelectionOrder([])}
           customServices={customServices}
           onRemoveCustom={handleRemoveCustom}
           compareMode

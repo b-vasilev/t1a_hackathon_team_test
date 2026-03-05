@@ -267,6 +267,7 @@ export default function Home() {
                   services={services}
                   selectedIds={selectedIds}
                   onToggle={toggleService}
+                  onClearAll={() => setSelectedIds(new Set())}
                   customServices={customServices}
                   onRemoveCustom={handleRemoveCustom}
                 />

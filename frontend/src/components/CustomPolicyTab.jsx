@@ -158,13 +158,28 @@ export default function CustomPolicyTab() {
       {/* Input section */}
       <section className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
-          <label
-            htmlFor="custom-policy-name"
-            className="text-sm font-medium"
-            style={{ color: 'var(--pl-text-muted)' }}
-          >
-            Policy / Service Name <span style={{ color: 'var(--pl-text-dim)' }}>(optional)</span>
-          </label>
+          <div className="flex items-center">
+            <label
+              htmlFor="custom-policy-name"
+              className="text-sm font-medium"
+              style={{ color: 'var(--pl-text-muted)' }}
+            >
+              Policy / Service Name <span style={{ color: 'var(--pl-text-dim)' }}>(optional)</span>
+            </label>
+            {(policyText || serviceName || results) && (
+              <button
+                onClick={handleClear}
+                className="ml-auto px-2.5 py-0.5 rounded-full text-[0.65rem] font-medium transition-all duration-150"
+                style={{
+                  background: 'transparent',
+                  color: 'var(--pl-text)',
+                  border: '1px solid var(--pl-text)',
+                }}
+              >
+                Clear All
+              </button>
+            )}
+          </div>
           <input
             id="custom-policy-name"
             type="text"

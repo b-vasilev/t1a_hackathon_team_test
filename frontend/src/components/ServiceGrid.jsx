@@ -5,7 +5,7 @@ import ServiceIcon from '@/components/ServiceIcon';
 
 const CATEGORY_ORDER = ['All', 'Social', 'Messaging', 'Streaming', 'Shopping & Finance', 'Productivity'];
 
-export default function ServiceGrid({ services, selectedIds, onToggle, customServices, onRemoveCustom, compareMode = false, slotOrder = [], onDragStart }) {
+export default function ServiceGrid({ services, selectedIds, onToggle, onClearAll, customServices, onRemoveCustom, compareMode = false, slotOrder = [], onDragStart }) {
   const [activeCategory, setActiveCategory] = useState('All');
 
   const allServices = [
@@ -30,7 +30,7 @@ export default function ServiceGrid({ services, selectedIds, onToggle, customSer
   return (
     <div className="flex flex-col gap-4">
       {/* Category tabs */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 items-center">
         {availableCategories.map(cat => {
           const isActive = activeCategory === cat;
           return (
@@ -56,6 +56,19 @@ export default function ServiceGrid({ services, selectedIds, onToggle, customSer
             </button>
           );
         })}
+        {onClearAll && selectedIds.size > 0 && (
+          <button
+            onClick={onClearAll}
+            className="ml-auto px-2.5 py-0.5 rounded-full text-[0.65rem] font-medium transition-all duration-150"
+            style={{
+              background: 'transparent',
+              color: 'var(--pl-text)',
+              border: '1px solid var(--pl-text)',
+            }}
+          >
+            Clear All
+          </button>
+        )}
       </div>
 
       {/* Service grid */}
