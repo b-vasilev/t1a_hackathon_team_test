@@ -314,6 +314,73 @@ export default function CompareResults({ resultA, resultB, onReset }) {
         </CollapsibleSection>
       )}
 
+      {/* Alternatives */}
+      {((resultA.alternatives?.length || 0) + (resultB.alternatives?.length || 0) > 0) && (
+        <CollapsibleSection title="Privacy-Friendly Alternatives" color="var(--pl-accent)">
+          <div className="grid grid-cols-2 gap-4">
+            {[resultA, resultB].map((r, idx) => (
+              <div key={r.service_id}>
+                <p className="text-xs font-medium mb-2" style={{ color: idx === 0 ? 'var(--pl-accent)' : '#f97316' }}>{r.name}</p>
+                {r.alternatives?.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {r.alternatives.slice(0, 3).map((alt) => (
+                      alt.url ? (
+                        <a
+                          key={alt.name}
+                          href={alt.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={alt.description}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '3px 10px',
+                            borderRadius: '9999px',
+                            border: '1px solid rgba(0,229,255,0.2)',
+                            background: 'rgba(0,229,255,0.06)',
+                            textDecoration: 'none',
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            color: 'var(--pl-accent)',
+                            fontFamily: 'var(--font-mono)',
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,229,255,0.14)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,229,255,0.06)'; }}
+                        >
+                          {alt.name} ↗
+                        </a>
+                      ) : (
+                        <span
+                          key={alt.name}
+                          title={alt.description}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '3px 10px',
+                            borderRadius: '9999px',
+                            border: '1px solid rgba(0,229,255,0.2)',
+                            background: 'rgba(0,229,255,0.06)',
+                            fontSize: '0.72rem',
+                            fontWeight: 600,
+                            color: 'var(--pl-accent)',
+                            fontFamily: 'var(--font-mono)',
+                          }}
+                        >
+                          {alt.name}
+                        </span>
+                      )
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs" style={{ color: 'var(--pl-text-dim)' }}>None found</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </CollapsibleSection>
+      )}
+
       {/* Reset button */}
       <div className="flex justify-center pt-2">
         <button

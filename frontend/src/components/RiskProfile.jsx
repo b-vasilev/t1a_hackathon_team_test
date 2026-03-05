@@ -224,8 +224,8 @@ function ServiceCard({ result, onRescan, isLoading }) {
         </div>
       </div>
 
-      {/* In-card alternatives for D/F services */}
-      {LOW_GRADES.has(result.grade) && (() => {
+      {/* In-card alternatives */}
+      {(() => {
         const alts = getAlternativesForResult(result);
         if (alts.length === 0) { return null; }
         return (
